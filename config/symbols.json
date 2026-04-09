@@ -1,0 +1,13 @@
+{
+  "symbols": [
+    "AAPL",
+    "GOOG",
+    "MSFT",
+    "TSLA"
+  ],
+  "feed": {
+    "seed": 42,
+    "dt_years": 2.5e-5,
+    "pump_interval_ms": 40
+  }
+}

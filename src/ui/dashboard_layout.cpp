@@ -1,0 +1,162 @@
+#include "marketsim/ui/dashboard_ftxui.hpp"
+
+#include <ftxui/dom/elements.hpp>
+#include <ftxui/screen/color.hpp>
+
+#include <algorithm>
+#include <string>
+
+namespace marketsim::ui {
+
+namespace {
+
+using namespace ftxui;
+
+[[nodiscard]] Element depth_table(const char* title, const std::vector<std::array<std::string, 3>>& rows,
+                                  const bool is_bid_side, const bool empty_hint) {
+  Elements lines;
+  lines.push_back(hbox({
+                    text(" Price") | flex,
+                    text("Qty") | flex,
+                    text("#") | flex,
+                }) |
+                bold);
+  if (rows.empty()) {
+    lines.push_back(text(empty_hint ? "No bids" : "No asks") | dim);
+  } else {
+    for (const auto& r : rows) {
+      const Color px_color = is_bid_side ? Color::GreenLight : Color::RedLight;
+      lines.push_back(hbox({
+          text(r[0]) | flex | color(px_color),
+          text(r[1]) | flex,
+          text(r[2]) | flex,
+      }));
+    }
+  }
+  return window(text(title) | bold, vbox(std::move(lines)));
+}
+
+[[nodiscard]] Element portfolio_table(const std::vector<std::array<std::string, 5>>& rows) {
+  Elements lines;
+  lines.push_back(hbox({
+                    text("Sym") | flex,
+                    text("Qty") | flex,
+                    text("Avg") | flex,
+                    text("U-PnL") | flex,
+                    text("Mkt") | flex,
+                }) |
+                bold);
+  if (rows.empty()) {
+    lines.push_back(text("No open positions") | dim);
+  } else {
+    for (const auto& r : rows) {
+      lines.push_back(hbox({
+          text(r[0]) | flex,
+          text(r[1]) | flex,
+          text(r[2]) | flex,
+          text(r[3]) | flex,
+          text(r[4]) | flex,
+      }));
+    }
+  }
+  return window(text("Portfolio") | bold, vbox(std::move(lines)));
+}
+
+[[nodiscard]] Element trades_table(const std::vector<std::array<std::string, 5>>& rows, const int max_rows) {
+  Elements lines;
+  lines.push_back(hbox({
+                    text("Id") | flex,
+                    text("Sym") | flex,
+                    text("Side") | flex,
+                    text("Px") | flex,
+                    text("Qty") | flex,
+                }) |
+                bold);
+  if (rows.empty()) {
+    lines.push_back(text("No trades yet") | dim);
+  } else {
+    int shown = 0;
+    for (const auto& r : rows) {
+      if (shown >= max_rows) {
+        break;
+      }
+      lines.push_back(hbox({
+          text(r[0]) | flex,
+          text(r[1]) | flex,
+          text(r[2]) | flex,
+          text(r[3]) | flex,
+          text(r[4]) | flex,
+      }));
+      ++shown;
+    }
+  }
+  return window(text("Recent trades") | bold, vbox(std::move(lines)));
+}
+
+}
+
+ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, const int term_width,
+                                     const int term_height) {
+  using namespace ftxui;
+
+  const bool cramped = term_width < 80 || term_height < 24;
+
+  Element header = hbox({
+      text(" marketsim ") | bold | color(Color::CyanLight),
+      text(" | ") | dim,
+      text(model.symbol_line) | bold,
+      text(" | ") | dim,
+      text(model.clock_hhmmss) | color(Color::GrayLight),
+      text(" | ") | dim,
+      text(model.sim_time_str) | dim,
+      filler(),
+      text("Eq ") | dim,
+      text(model.equity_str) | bold,
+      text("  P&L r:") | dim,
+      text(model.realized_str) | color(Color::GreenLight),
+      text(" u:") | dim,
+      text(model.unrealized_str) | color(Color::YellowLight),
+  });
+
+  if (cramped) {
+    header = vbox({
+        header,
+        paragraph("Tip: use at least 80×24 for the intended layout (now " + std::to_string(term_width) + "×" +
+                  std::to_string(term_height) + ")") |
+            color(Color::Yellow),
+    });
+  }
+
+  Element chart = window(
+      text("Mid / sparkline") | bold,
+      vbox({
+          hbox({text("Mid: ") | dim, text(model.mid_str) | bold, text("  Spread: ") | dim, text(model.spread_str)}),
+          separator(),
+          paragraph(model.sparkline_line) | color(Color::Cyan),
+      }));
+
+  const Element book_row =
+      hbox({
+          depth_table("Bids", model.bid_table, true, model.orderbook_empty) | flex,
+          depth_table("Asks", model.ask_table, false, model.orderbook_empty) | flex,
+      }) |
+      flex;
+
+  const Element mid_row = hbox({
+      book_row | flex,
+      chart | flex,
+      portfolio_table(model.position_table) | flex,
+  });
+
+  const int trade_max = std::max(3, term_height / 3);
+  const Element trades = trades_table(model.trade_table, trade_max) | flex;
+
+  return vbox({
+             header | border,
+             mid_row | flex | border,
+             trades | flex | border,
+         }) |
+         flex;
+}
+
+}
