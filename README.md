@@ -1,74 +1,47 @@
 # Market Sim
 
-C++20 market simulator: limit-order book, matching engine, geometric-Brownian mock feed on a single-producer/single-consumer ring buffer, portfolio and pre-trade risk checks, a market maker that quotes around the feed, REST API ([cpp-httplib](https://github.com/yhirose/cpp-httplib)), and a terminal UI ([FTXUI](https://github.com/ArthurSonzogni/FTXUI)). Prices are integer cents, quantities are whole shares, simulated time is a monotonic tick counter.
+A practice stock exchange for the 30 Dow stocks that runs on your own computer.
 
-You trade as a single account against a simulated market maker; every feed tick replaces its bid and ask around the new price, so the book follows the feed and your resting limit orders fill when the price moves through them.
+![Market Sim in the browser: the Dow 30 board, a price chart, the order book and the order form](docs/screenshot.png)
 
-## Requirements
+Prices move on their own and partly together, so some days the whole board turns green and some days red. A simulated market maker always quotes. You start with $1,000,000 of play money and trade from the browser, a terminal dashboard, or your own code through a REST API. Nothing is real money or real market data.
 
-- CMake 3.20+
-- C++20 compiler (Clang 14+ or GCC 11+)
-- Git (FetchContent pulls dependencies)
+Under the hood this is a small C++20 exchange: a limit order book with price-time priority, a matching engine, a random-walk feed on a lock-free queue, pre-trade risk checks, and a portfolio. Prices are whole cents and quantities are whole shares.
 
-## Build
+## Run it
+
+With Docker:
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build
+docker build -t market-sim .
+docker run --rm -p 8080:8080 market-sim
 ```
 
-Release:
+Then open http://localhost:8080.
+
+From source you need CMake 3.20+, GCC 11+ or Clang 14+, and Git (FetchContent pulls dependencies). Build a Release binary and start the server from the repository root so `config/` and `web/` are found:
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --build build --target marketsim_server
+./build/marketsim_server
 ```
 
-CMake options:
+## Ways to trade
 
-- `-DMARKETSIM_WERROR=OFF` — do not treat warnings as errors.
-- `-DMARKETSIM_SANITIZE=OFF` — disable AddressSanitizer and UBSan in Debug builds.
+**Browser.** The board is coloured by each stock's move since the open. Click a stock to open its chart and order book. Market orders fill at once against the market maker; limit orders wait on the book until the price reaches them.
 
-## Tests
+**Terminal.** `marketsim_dashboard` opens on the market overview: arrow keys (or `j`/`k`) and Enter pick a stock, `o` returns to the overview, `[` and `]` step through symbols, `q` quits. Tab moves between the order controls; prices there are in cents.
 
-```bash
-ctest --test-dir build --output-on-failure
-```
-
-Debug builds use `-Werror` and sanitizers by default (unless disabled above). CI runs the same build and tests with GCC and Clang on pushes to main and pull requests, plus a Release build.
-
-## Small demo binary
-
-```bash
-./build/marketsim
-```
-
-## Executables
-
-| Binary | HTTP | Terminal UI | Notes |
-|--------|------|-------------|--------|
-| `marketsim_server` | yes (`0.0.0.0:8080` by default) | no | Feed threads + REST. |
-| `marketsim_dashboard` | no | yes | Same runtime, trade via UI. |
-| `marketsim_demo` | yes (`127.0.0.1`) | yes | REST and UI share one `SimulatorService`. |
-
-Run long-lived binaries from the **repository root** (or pass an explicit path) so `config/symbols.json` resolves. If the file is missing or invalid, built-in defaults apply (same symbol set as `GbmFeed::register_default_symbols()`).
-
-```bash
-./build/marketsim_server [port] [path/to/symbols.json]
-./build/marketsim_dashboard [SYMBOL] [path/to/symbols.json]
-./build/marketsim_demo [port] [path/to/symbols.json] [ui_focus_symbol]
-```
-
-Stop with **Ctrl+C** (SIGINT/SIGTERM): HTTP thread stops and joins, then feed threads stop.
-
-## REST API
+**Your own code.** Talk to the REST API on the same process as the feed:
 
 | Method | Path | Purpose |
 |--------|------|---------|
 | `POST` | `/api/v1/orders` | Place an order. Body: `symbol`, `side` (`buy`/`sell`), `type` (`limit`/`market`), `quantity`, `price_cents` for limits, optional `client_id`. |
 | `DELETE` | `/api/v1/orders/<id>` | Cancel a resting order. |
 | `GET` | `/api/v1/orders` | List your resting orders. |
-| `GET` | `/api/v1/symbols` | Configured symbols and last feed prices. |
+| `GET` | `/api/v1/symbols` | Configured symbols with `name`, `last_price_cents`, and `open_price_cents` (null until the first tick). |
+| `GET` | `/api/v1/index` | Price-weighted index (`name`, `value`, `open_value`). `404` when no index is configured. |
 | `GET` | `/api/v1/quote/<SYM>` | Top of book; includes `last_price_cents`. |
 | `GET` | `/api/v1/orderbook/<SYM>` | Depth snapshot. |
 | `GET` | `/api/v1/portfolio` | Cash, equity, positions. |
@@ -84,37 +57,55 @@ curl -sS -X POST http://127.0.0.1:8080/api/v1/orders \
 
 Crossing your own resting order cancels that resting order instead of trading (self-trade prevention); successful place responses include `self_trade_cancelled_order_ids` (possibly empty).
 
-## Terminal dashboard
+## Programs
 
-Tab moves between controls, Enter presses a button, the side and type buttons flip Buy/Sell and Limit/Market, prices in cents, `[` and `]` switch symbols, `q` quits.
+| Binary | Arguments | REST / web UI | Terminal UI |
+|--------|-----------|---------------|-------------|
+| `marketsim_server` | `[port] [path/to/symbols.json]` | yes (`0.0.0.0:8080` by default; serves `web/` at `/`) | no |
+| `marketsim_dashboard` | `[SYMBOL] [path/to/symbols.json]` | no | yes |
+| `marketsim_demo` | `[port] [path/to/symbols.json] [ui_focus_symbol]` | yes (`127.0.0.1`; serves `web/` at `/`) | yes |
+
+Run them from the repository root (or pass an explicit config path). If the config file is missing or invalid, built-in defaults apply. Stop with Ctrl+C (SIGINT/SIGTERM): the HTTP thread stops and joins, then the feed threads stop.
 
 ## Configuration
 
 `config/symbols.json` sections:
 
-- **symbols** — built-in AAPL, GOOG, MSFT, TSLA may be plain strings; any other ticker needs `initial_price_cents`, optionally `drift` and `volatility`, otherwise it is skipped with a warning.
-- **feed** — `seed`, `dt_years`, `pump_interval_ms`.
+- **symbols** — each object has `symbol`, optional `name`, `initial_price_cents`, `volatility`, `drift`, and `market_correlation` (0 = independent of the shared market move, 1 = fully tied to it). Tickers that are not in the built-in default table need a positive `initial_price_cents` or they are skipped with a warning.
+- **index** — `name` and `divisor`. The index value is the sum of last prices in dollars divided by the divisor, the way the Dow is computed. A divisor of `0` (or a missing section) disables the index. The checked-in divisor is approximate.
+- **feed** — `seed`, `dt_years`, `pump_interval_ms`. The checked-in values make one real second about one market minute, so a trading day takes about six and a half minutes.
 - **account** — `cash_cents` and the limits `max_order_size`, `max_position_per_symbol`, `min_price_cents`, `max_price_cents`, `price_collar_cents`; `0` disables a limit.
 - **market_maker** — `enabled`, `half_spread_bps`, `quote_size`.
 
 Missing sections use built-in defaults. See the checked-in file for shape.
 
-## Known limitations
+## Tests
 
-Resting buy orders do not reserve cash; market buys are checked against the latest feed price but fill at the maker's ask (half a spread higher); one trader account and no persistence, state resets on restart.
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
 
-## Project layout
+Debug builds use `-Werror` and AddressSanitizer/UBSan by default. CMake switches: `-DMARKETSIM_WERROR=OFF` and `-DMARKETSIM_SANITIZE=OFF`. CI runs the same build and tests with GCC and Clang on pushes to main and pull requests, plus a Release build.
+
+## How it fits together
 
 | Path | Purpose |
 |------|---------|
-| `include/marketsim/` | Headers: domain, order book, matching, event bus, feed, portfolio, config, runtime, gateway, view, UI |
-| `src/` | Implementations and entry points |
+| `include/marketsim/`, `src/` | Headers and implementations: domain, order book, matching, event bus, feed, portfolio, config, runtime, gateway, view, UI |
+| `web/` | Browser UI (plain HTML, CSS, JavaScript) |
 | `tests/` | GoogleTest suites |
 | `config/` | Runtime JSON |
-| `cmake/` | Shared CMake helpers |
 
-## Architecture (short)
+- **Layers:** `domain` types and market structs → `orderbook` / `matching` → `portfolio` + `risk` → `gateway::SimulatorService` (HTTP façade) → `view` read models for the UI → `ui` formatting and FTXUI. The browser talks only to the REST API.
+- **Threads:** `SimulatorRuntime` runs a producer (GBM ticks pushed to an SPSC ring) and a consumer (applies marks and risk reference from each `Tick`; the consumer also requotes the market maker). HTTP runs on its own thread in server/demo binaries. The service uses one mutex for all mutations and reads through its public API.
+- **Design choices:** Integer money avoids rounding bugs in core logic. The SPSC queue matches one writer and one reader; ticks can be dropped if the ring is full. The terminal UI uses `capture_view_snapshot` (structs) rather than parsing JSON.
 
-- **Layers:** `domain` types and market structs → `orderbook` / `matching` → `portfolio` + `risk` → `gateway::SimulatorService` (HTTP façade) → `view` read models for the UI → `ui` formatting and FTXUI.
-- **Threads:** `SimulatorRuntime` runs a producer (GBM ticks pushed to an SPSC ring) and a consumer (applies marks and risk reference from each `Tick`; the consumer also requotes the market maker). HTTP runs on its own thread in server/demo binaries. The service uses **one mutex** for all mutations and reads through its public API.
-- **Design choices:** Integer money avoids rounding bugs in core logic. The SPSC queue matches one writer and one reader, ticks can be dropped if the ring is full. The TUI uses `capture_view_snapshot` (structs) rather than parsing JSON.
+## Known limitations
+
+Resting buy orders do not reserve cash. Market buys are checked against the latest feed price but fill at the maker's ask (half a spread higher). There is one trader account and nothing is saved; state resets on restart. The browser chart starts empty when the page opens and only keeps prices collected while that tab is open.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test, and send a change.
