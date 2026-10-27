@@ -45,7 +45,6 @@ FetchContent_MakeAvailable(ftxui)
 set(MARKETSIM_SIMULATOR_SERVICE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/src/simulator_service.cpp")
 set(MARKETSIM_GATEWAY_SOURCES
   "${MARKETSIM_SIMULATOR_SERVICE_SRC}"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/demo_seed.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/gateway_order_parse.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/gateway_http_register.cpp"
 )
@@ -115,7 +114,6 @@ marketsim_apply_warnings(marketsim_server PRIVATE)
 
 add_executable(marketsim_dashboard
   src/marketsim_dashboard.cpp
-  src/demo_seed.cpp
   ${MARKETSIM_SIMULATOR_SERVICE_SRC}
 )
 target_link_libraries(marketsim_dashboard PRIVATE

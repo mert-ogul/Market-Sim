@@ -25,7 +25,7 @@ std::vector<domain::Symbol> tickers_of(const config::SymbolsJsonConfig& cfg) {
 SimulatorRuntime::SimulatorRuntime(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents,
                                    config::SymbolsJsonConfig cfg)
     : cfg_(std::move(cfg)),
-      service_(std::move(limits), initial_cash_cents, tickers_of(cfg_)),
+      service_(std::move(limits), initial_cash_cents, tickers_of(cfg_), cfg_.market_maker),
       feed_(feed::GbmFeedConfig{.dt_years = cfg_.dt_years, .seed = cfg_.feed_seed}) {
   for (const config::SymbolSpec& s : cfg_.symbols) {
     feed_.register_symbol(s.ticker, s.gbm);

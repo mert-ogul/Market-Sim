@@ -3,6 +3,7 @@
 #include "marketsim/orderbook/order_book.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <utility>
@@ -82,10 +83,12 @@ namespace {
 }
 
 SimulatorService::SimulatorService(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents,
-                                   std::vector<domain::Symbol> tradable_symbols)
+                                   std::vector<domain::Symbol> tradable_symbols,
+                                   domain::MarketMakerSettings market_maker)
     : tradable_symbols_(std::move(tradable_symbols)),
       portfolio_(initial_cash_cents),
-      risk_(std::move(limits), portfolio_) {}
+      risk_(std::move(limits), portfolio_),
+      market_maker_(market_maker) {}
 
 bool SimulatorService::is_tradable(const domain::Symbol& symbol) const {
   return tradable_symbols_.empty() ||
@@ -308,10 +311,47 @@ view::SimulatorSnapshot SimulatorService::capture_view_snapshot(const domain::Sy
   return snap;
 }
 
+void SimulatorService::requote_market_maker(const domain::Symbol& symbol,
+                                            const domain::PriceCents mid_cents) {
+  auto& ids = market_maker_orders_[symbol];
+  for (const domain::OrderId id : ids) {
+    (void)engine_.cancel_order(id);  // false means the quote was already filled
+  }
+  ids.clear();
+
+  const domain::PriceCents half_spread =
+      std::max<domain::PriceCents>(1, mid_cents * market_maker_.half_spread_bps / 10'000);
+
+  const std::array<std::pair<domain::Side, domain::PriceCents>, 2> quotes{{
+      {domain::Side::Buy, std::max<domain::PriceCents>(1, mid_cents - half_spread)},
+      {domain::Side::Sell, mid_cents + half_spread},
+  }};
+
+  for (const auto& [side, px] : quotes) {
+    const matching::SubmitRequest req{.symbol = symbol,
+                                      .side = side,
+                                      .type = domain::OrderType::Limit,
+                                      .limit_price = px,
+                                      .quantity = market_maker_.quote_size,
+                                      .owner = domain::kMarketMakerAccount};
+    matching::SubmitResult result = engine_.submit_order(req);
+    if (!result.accepted) {
+      continue;
+    }
+    record_and_apply_fills(result);
+    if (result.resting_quantity > 0) {
+      ids.push_back(result.order_id);
+    }
+  }
+}
+
 void SimulatorService::apply_mark_from_tick(const domain::Tick& tick) {
   std::lock_guard lock(mu_);
   portfolio_.apply_mark(tick.symbol, tick.last_price);
   risk_.set_reference(tick.symbol, tick.last_price);
+  if (market_maker_.enabled) {
+    requote_market_maker(tick.symbol, tick.last_price);
+  }
 }
 
 }

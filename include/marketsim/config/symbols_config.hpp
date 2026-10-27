@@ -1,5 +1,6 @@
 #pragma once
 
+#include "marketsim/domain/market_maker_settings.hpp"
 #include "marketsim/domain/types.hpp"
 #include "marketsim/feed/gbm_feed.hpp"
 
@@ -20,6 +21,7 @@ struct SymbolsJsonConfig {
   std::uint64_t feed_seed{42};
   double dt_years{1.0 / (252.0 * 390.0)};
   int pump_interval_ms{40};
+  domain::MarketMakerSettings market_maker{.enabled = true};
 };
 
 /// Built-in defaults: same symbols as `GbmFeed::register_default_symbols()` with table params.

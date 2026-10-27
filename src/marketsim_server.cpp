@@ -1,6 +1,5 @@
 #include "marketsim/config/symbols_config.hpp"
 #include "marketsim/domain/risk_config.hpp"
-#include "marketsim/gateway/demo_seed.hpp"
 #include "marketsim/gateway/http_setup.hpp"
 #include "marketsim/gateway/register_http_api.hpp"
 #include "marketsim/runtime/simulator_runtime.hpp"
@@ -47,10 +46,6 @@ int main(int argc, char* argv[]) {
   constexpr marketsim::domain::PriceCents kInitialCash = 100'000'000;
   marketsim::runtime::SimulatorRuntime runtime(limits, kInitialCash, cfg);
   runtime.start();
-
-  const marketsim::domain::Symbol& seed_sym = runtime.pump_order().front();
-  const std::int64_t mid = marketsim::config::initial_price_hint_cents(cfg, seed_sym);
-  marketsim::gateway::seed_demo_liquidity(runtime.service(), seed_sym, mid);
 
   httplib::Server svr;
   marketsim::gateway::register_http_api(svr, runtime.service());
