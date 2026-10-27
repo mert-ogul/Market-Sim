@@ -9,5 +9,18 @@
     "seed": 42,
     "dt_years": 2.5e-5,
     "pump_interval_ms": 40
+  },
+  "account": {
+    "cash_cents": 100000000,
+    "max_order_size": 5000,
+    "max_position_per_symbol": 20000,
+    "min_price_cents": 0,
+    "max_price_cents": 0,
+    "price_collar_cents": 0
+  },
+  "market_maker": {
+    "enabled": true,
+    "half_spread_bps": 5,
+    "quote_size": 500
   }
 }
