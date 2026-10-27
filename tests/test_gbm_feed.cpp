@@ -93,6 +93,89 @@ TEST(GbmFeed, LowPricedSymbolKeepsMoving) {
   EXPECT_LT(lowest, highest);
 }
 
+[[nodiscard]] double pearson_log_return_correlation(const std::vector<double>& prices_a,
+                                                    const std::vector<double>& prices_b) {
+  const std::size_t n = prices_a.size();
+  if (n < 2 || prices_b.size() != n) {
+    return 0.0;
+  }
+  const std::size_t returns = n - 1;
+  double mean_a = 0.0;
+  double mean_b = 0.0;
+  std::vector<double> ra(returns);
+  std::vector<double> rb(returns);
+  for (std::size_t i = 0; i < returns; ++i) {
+    ra[i] = std::log(prices_a[i + 1] / prices_a[i]);
+    rb[i] = std::log(prices_b[i + 1] / prices_b[i]);
+    mean_a += ra[i];
+    mean_b += rb[i];
+  }
+  mean_a /= static_cast<double>(returns);
+  mean_b /= static_cast<double>(returns);
+  double numerator = 0.0;
+  double var_a = 0.0;
+  double var_b = 0.0;
+  for (std::size_t i = 0; i < returns; ++i) {
+    const double da = ra[i] - mean_a;
+    const double db = rb[i] - mean_b;
+    numerator += da * db;
+    var_a += da * da;
+    var_b += db * db;
+  }
+  return numerator / std::sqrt(var_a * var_b);
+}
+
+TEST(GbmFeed, CorrelatedSymbolsMoveTogether) {
+  GbmFeedConfig cfg;
+  cfg.seed = 5;
+  GbmFeed feed(cfg);
+  feed.register_symbol("HI1", GbmSymbolParams{100'000, 0.0, 0.3, 0.95});
+  feed.register_symbol("HI2", GbmSymbolParams{100'000, 0.0, 0.3, 0.95});
+  feed.register_symbol("LO1", GbmSymbolParams{100'000, 0.0, 0.3, 0.0});
+  feed.register_symbol("LO2", GbmSymbolParams{100'000, 0.0, 0.3, 0.0});
+
+  std::vector<double> hi1{100'000.0};
+  std::vector<double> hi2{100'000.0};
+  std::vector<double> lo1{100'000.0};
+  std::vector<double> lo2{100'000.0};
+  for (int i = 0; i < 3'000; ++i) {
+    feed.begin_round();
+    const auto t_hi1 = feed.next_tick("HI1");
+    const auto t_hi2 = feed.next_tick("HI2");
+    const auto t_lo1 = feed.next_tick("LO1");
+    const auto t_lo2 = feed.next_tick("LO2");
+    ASSERT_TRUE(t_hi1.has_value());
+    ASSERT_TRUE(t_hi2.has_value());
+    ASSERT_TRUE(t_lo1.has_value());
+    ASSERT_TRUE(t_lo2.has_value());
+    hi1.push_back(static_cast<double>(t_hi1->last_price));
+    hi2.push_back(static_cast<double>(t_hi2->last_price));
+    lo1.push_back(static_cast<double>(t_lo1->last_price));
+    lo2.push_back(static_cast<double>(t_lo2->last_price));
+  }
+
+  EXPECT_GT(pearson_log_return_correlation(hi1, hi2), 0.8);
+  EXPECT_LT(std::abs(pearson_log_return_correlation(lo1, lo2)), 0.15);
+}
+
+TEST(GbmFeed, ZeroCorrelationIgnoresMarketShock) {
+  GbmFeedConfig cfg;
+  cfg.seed = 9;
+  GbmFeed with_round(cfg);
+  GbmFeed without_round(cfg);
+  with_round.register_symbol("X", GbmSymbolParams{20'000, 0.05, 0.25});
+  without_round.register_symbol("X", GbmSymbolParams{20'000, 0.05, 0.25});
+  for (int i = 0; i < 200; ++i) {
+    with_round.begin_round();
+    const auto a = with_round.next_tick("X");
+    const auto b = without_round.next_tick("X");
+    ASSERT_TRUE(a.has_value());
+    ASSERT_TRUE(b.has_value());
+    EXPECT_EQ(a->last_price, b->last_price);
+    EXPECT_EQ(a->last_size, b->last_size);
+  }
+}
+
 TEST(GbmFeed, UnknownSymbolReturnsNullopt) {
   GbmFeed feed(GbmFeedConfig{});
   feed.register_symbol("ONLY", GbmSymbolParams{1000, 0.0, 0.1});

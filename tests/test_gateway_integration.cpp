@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "marketsim/domain/market_data.hpp"
+#include "marketsim/domain/market_info.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/gateway/http_setup.hpp"
 #include "marketsim/gateway/register_http_api.hpp"
@@ -180,6 +181,71 @@ TEST(GatewayIntegration, ErrorHandlerKeepsSpecificErrorBodies) {
   ASSERT_TRUE(missing);
   EXPECT_EQ(missing->status, 404);
   EXPECT_EQ(nlohmann::json::parse(missing->body).at("error").get<std::string>(), "not_found");
+
+  svr.stop();
+  th.join();
+}
+
+TEST(GatewayIntegration, IndexIsPriceWeightedSumOverDivisor) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::domain::MarketInfo info;
+  info.company_names = {{"AAA", "Alpha Corp"}};
+  info.index_name = "Test 2";
+  info.index_divisor = 0.5;
+  marketsim::gateway::SimulatorService svc(limits, 100'000'000, {"AAA", "BBB"},
+                                           marketsim::domain::MarketMakerSettings{}, std::move(info));
+
+  svc.apply_mark_from_tick(marketsim::domain::Tick{.symbol = "AAA",
+                                                   .last_price = 10'000,
+                                                   .last_size = 1,
+                                                   .cumulative_volume = 1,
+                                                   .time = 0});
+  const auto partial = svc.index_json();
+  EXPECT_EQ(partial.at("name").get<std::string>(), "Test 2");
+  EXPECT_TRUE(partial.at("value").is_null());
+  EXPECT_TRUE(partial.at("open_value").is_null());
+
+  svc.apply_mark_from_tick(marketsim::domain::Tick{.symbol = "BBB",
+                                                   .last_price = 20'000,
+                                                   .last_size = 1,
+                                                   .cumulative_volume = 1,
+                                                   .time = 1});
+  svc.apply_mark_from_tick(marketsim::domain::Tick{.symbol = "AAA",
+                                                   .last_price = 11'000,
+                                                   .last_size = 1,
+                                                   .cumulative_volume = 2,
+                                                   .time = 2});
+
+  const auto idx = svc.index_json();
+  EXPECT_DOUBLE_EQ(idx.at("value").get<double>(), (110.0 + 200.0) / 0.5);
+  EXPECT_DOUBLE_EQ(idx.at("open_value").get<double>(), (100.0 + 200.0) / 0.5);
+
+  const auto sj = svc.symbols_json();
+  ASSERT_EQ(sj.at("symbols").size(), 2u);
+  EXPECT_EQ(sj.at("symbols")[0].at("symbol").get<std::string>(), "AAA");
+  EXPECT_EQ(sj.at("symbols")[0].at("name").get<std::string>(), "Alpha Corp");
+  EXPECT_EQ(sj.at("symbols")[0].at("open_price_cents").get<std::int64_t>(), 10'000);
+  EXPECT_EQ(sj.at("symbols")[0].at("last_price_cents").get<std::int64_t>(), 11'000);
+  EXPECT_EQ(sj.at("symbols")[1].at("symbol").get<std::string>(), "BBB");
+  EXPECT_EQ(sj.at("symbols")[1].at("name").get<std::string>(), "BBB");
+}
+
+TEST(GatewayIntegration, IndexEndpointWithoutDivisorIsNotFound) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::gateway::SimulatorService svc(limits, 100'000'000);
+
+  httplib::Server svr;
+  marketsim::gateway::register_http_api(svr, svc);
+
+  const int port = 18194;
+  std::thread th([&]() { svr.listen("127.0.0.1", port); });
+  ASSERT_TRUE(marketsim::gateway::wait_until_server_running(svr));
+
+  httplib::Client cli("127.0.0.1", port);
+  const auto res = cli.Get("/api/v1/index");
+  ASSERT_TRUE(res);
+  EXPECT_EQ(res->status, 404);
+  EXPECT_EQ(nlohmann::json::parse(res->body).at("error").get<std::string>(), "no_index");
 
   svr.stop();
   th.join();

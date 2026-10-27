@@ -28,6 +28,7 @@ template <std::size_t Capacity>
                                        const std::vector<domain::Symbol>& symbols,
                                        eventbus::SpscRing<eventbus::Event, Capacity>& ring) {
   std::size_t n = 0;
+  feed.begin_round();
   for (const domain::Symbol& sym : symbols) {
     if (try_publish_tick(feed, sym, ring)) {
       ++n;

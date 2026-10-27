@@ -1,5 +1,6 @@
 #pragma once
 
+#include "marketsim/domain/market_info.hpp"
 #include "marketsim/domain/market_maker_settings.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/domain/trade.hpp"
@@ -30,7 +31,8 @@ public:
   /// Restricts orders and market data to these symbols; empty allows any.
   explicit SimulatorService(domain::RiskLimits limits, domain::PriceCents initial_cash_cents,
                             std::vector<domain::Symbol> tradable_symbols = {},
-                            domain::MarketMakerSettings market_maker = {});
+                            domain::MarketMakerSettings market_maker = {},
+                            domain::MarketInfo market_info = {});
 
   SimulatorService(const SimulatorService&) = delete;
   SimulatorService& operator=(const SimulatorService&) = delete;
@@ -55,8 +57,14 @@ public:
   /// Resting trader orders: id, symbol, side, limit price, size and remaining.
   [[nodiscard]] nlohmann::json open_orders_json() const;
 
-  /// Configured symbols with last feed price (null until the first tick).
+  /// Configured symbols with company name, last feed price, and opening price (null until the first
+  /// tick).
   [[nodiscard]] nlohmann::json symbols_json() const;
+
+  [[nodiscard]] bool has_index() const noexcept { return market_info_.index_divisor > 0.0; }
+
+  /// Index name, current and opening value; value fields are null until every symbol has a price.
+  [[nodiscard]] nlohmann::json index_json() const;
 
   [[nodiscard]] nlohmann::json trades_json(std::size_t max_rows = 500) const;
 
@@ -74,6 +82,8 @@ private:
   void update_reference_from_quote(const domain::Quote& q);
   void requote_market_maker(const domain::Symbol& symbol, domain::PriceCents mid_cents);
   [[nodiscard]] nlohmann::json last_price_json(const domain::Symbol& symbol) const;
+  [[nodiscard]] std::optional<double> index_value(
+      const std::unordered_map<domain::Symbol, domain::PriceCents>& prices) const;
 
   const std::vector<domain::Symbol> tradable_symbols_;
   mutable std::mutex mu_;
@@ -82,8 +92,11 @@ private:
   matching::MatchingEngine engine_;
   std::deque<std::pair<domain::TradeId, domain::Trade>> trades_;
   const domain::MarketMakerSettings market_maker_;
+  const domain::MarketInfo market_info_;
   std::unordered_map<domain::Symbol, std::vector<domain::OrderId>> market_maker_orders_;
   std::unordered_map<domain::Symbol, domain::PriceCents> last_prices_;
+  /// First feed price seen per symbol; the reference for daily change.
+  std::unordered_map<domain::Symbol, domain::PriceCents> open_prices_;
   static constexpr std::size_t kMaxTrades = 10'000;
 };
 

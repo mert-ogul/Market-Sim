@@ -6,6 +6,7 @@
 #include <array>
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <utility>
 
 namespace marketsim::gateway {
@@ -92,11 +93,13 @@ namespace {
 
 SimulatorService::SimulatorService(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents,
                                    std::vector<domain::Symbol> tradable_symbols,
-                                   domain::MarketMakerSettings market_maker)
+                                   domain::MarketMakerSettings market_maker,
+                                   domain::MarketInfo market_info)
     : tradable_symbols_(std::move(tradable_symbols)),
       portfolio_(initial_cash_cents),
       risk_(std::move(limits), portfolio_),
-      market_maker_(market_maker) {}
+      market_maker_(market_maker),
+      market_info_(std::move(market_info)) {}
 
 bool SimulatorService::is_tradable(const domain::Symbol& symbol) const {
   return tradable_symbols_.empty() ||
@@ -279,12 +282,49 @@ nlohmann::json SimulatorService::symbols_json() const {
   for (const domain::Symbol& symbol : tradable_symbols_) {
     nlohmann::json row;
     row["symbol"] = symbol;
+    const auto name_it = market_info_.company_names.find(symbol);
+    if (name_it != market_info_.company_names.end() && !name_it->second.empty()) {
+      row["name"] = name_it->second;
+    } else {
+      row["name"] = symbol;
+    }
     row["last_price_cents"] = last_price_json(symbol);
+    const auto open_it = open_prices_.find(symbol);
+    row["open_price_cents"] =
+        open_it != open_prices_.end() ? nlohmann::json(open_it->second) : nlohmann::json(nullptr);
     arr.push_back(std::move(row));
   }
   nlohmann::json out;
   out["symbols"] = std::move(arr);
   return out;
+}
+
+std::optional<double> SimulatorService::index_value(
+    const std::unordered_map<domain::Symbol, domain::PriceCents>& prices) const {
+  if (market_info_.index_divisor <= 0.0 || tradable_symbols_.empty()) {
+    return std::nullopt;
+  }
+  double sum_dollars = 0.0;
+  for (const domain::Symbol& symbol : tradable_symbols_) {
+    const auto it = prices.find(symbol);
+    if (it == prices.end()) {
+      return std::nullopt;
+    }
+    sum_dollars += static_cast<double>(it->second) / 100.0;
+  }
+  const double value = sum_dollars / market_info_.index_divisor;
+  return std::round(value * 100.0) / 100.0;
+}
+
+nlohmann::json SimulatorService::index_json() const {
+  std::lock_guard lock(mu_);
+  nlohmann::json j;
+  j["name"] = market_info_.index_name;
+  const auto value = index_value(last_prices_);
+  j["value"] = value.has_value() ? nlohmann::json(*value) : nlohmann::json(nullptr);
+  const auto open_value = index_value(open_prices_);
+  j["open_value"] = open_value.has_value() ? nlohmann::json(*open_value) : nlohmann::json(nullptr);
+  return j;
 }
 
 nlohmann::json SimulatorService::trades_json(const std::size_t max_rows) const {
@@ -411,6 +451,7 @@ void SimulatorService::requote_market_maker(const domain::Symbol& symbol,
 void SimulatorService::apply_mark_from_tick(const domain::Tick& tick) {
   std::lock_guard lock(mu_);
   last_prices_[tick.symbol] = tick.last_price;
+  open_prices_.try_emplace(tick.symbol, tick.last_price);
   portfolio_.apply_mark(tick.symbol, tick.last_price);
   risk_.set_reference(tick.symbol, tick.last_price);
   if (market_maker_.enabled) {

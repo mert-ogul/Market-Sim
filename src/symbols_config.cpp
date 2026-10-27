@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -71,6 +72,12 @@ void parse_symbol_element(const nlohmann::json& el, const std::unordered_map<dom
   if (el.contains("volatility") && el["volatility"].is_number()) {
     s.gbm.volatility = el["volatility"].get<double>();
   }
+  if (el.contains("name") && el["name"].is_string()) {
+    s.name = el["name"].get<std::string>();
+  }
+  if (el.contains("market_correlation") && el["market_correlation"].is_number()) {
+    s.gbm.market_correlation = std::clamp(el["market_correlation"].get<double>(), 0.0, 1.0);
+  }
   if (s.ticker.empty()) {
     return;
   }
@@ -107,6 +114,18 @@ void parse_market_maker(const nlohmann::json& j, domain::MarketMakerSettings& se
   }
   read_integer(j, "half_spread_bps", settings.half_spread_bps, false);
   read_integer(j, "quote_size", settings.quote_size, false);
+}
+
+void parse_index(const nlohmann::json& j, SymbolsJsonConfig& out) {
+  if (j.contains("name") && j["name"].is_string()) {
+    out.index_name = j["name"].get<std::string>();
+  }
+  if (j.contains("divisor") && j["divisor"].is_number()) {
+    const double divisor = j["divisor"].get<double>();
+    if (divisor > 0.0) {
+      out.index_divisor = divisor;
+    }
+  }
 }
 
 }
@@ -166,6 +185,9 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
   }
   if (j.contains("market_maker") && j["market_maker"].is_object()) {
     parse_market_maker(j["market_maker"], out.market_maker);
+  }
+  if (j.contains("index") && j["index"].is_object()) {
+    parse_index(j["index"], out);
   }
   if (out.pump_interval_ms < 5) {
     out.pump_interval_ms = 5;
