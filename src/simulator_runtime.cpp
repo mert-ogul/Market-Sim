@@ -9,10 +9,23 @@
 
 namespace marketsim::runtime {
 
+namespace {
+
+std::vector<domain::Symbol> tickers_of(const config::SymbolsJsonConfig& cfg) {
+  std::vector<domain::Symbol> out;
+  out.reserve(cfg.symbols.size());
+  for (const config::SymbolSpec& s : cfg.symbols) {
+    out.push_back(s.ticker);
+  }
+  return out;
+}
+
+}
+
 SimulatorRuntime::SimulatorRuntime(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents,
                                    config::SymbolsJsonConfig cfg)
     : cfg_(std::move(cfg)),
-      service_(std::move(limits), initial_cash_cents),
+      service_(std::move(limits), initial_cash_cents, tickers_of(cfg_)),
       feed_(feed::GbmFeedConfig{.dt_years = cfg_.dt_years, .seed = cfg_.feed_seed}) {
   for (const config::SymbolSpec& s : cfg_.symbols) {
     feed_.register_symbol(s.ticker, s.gbm);

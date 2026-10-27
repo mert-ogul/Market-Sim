@@ -17,6 +17,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace marketsim::gateway {
 
@@ -24,12 +25,16 @@ namespace marketsim::gateway {
 /// one mutex; intended to be driven from a single httplib listener thread or a small pool.
 class SimulatorService {
 public:
-  explicit SimulatorService(domain::RiskLimits limits, domain::PriceCents initial_cash_cents);
+  /// Restricts orders and market data to these symbols; empty allows any.
+  explicit SimulatorService(domain::RiskLimits limits, domain::PriceCents initial_cash_cents,
+                            std::vector<domain::Symbol> tradable_symbols = {});
 
   SimulatorService(const SimulatorService&) = delete;
   SimulatorService& operator=(const SimulatorService&) = delete;
   SimulatorService(SimulatorService&&) = delete;
   SimulatorService& operator=(SimulatorService&&) = delete;
+
+  [[nodiscard]] bool is_tradable(const domain::Symbol& symbol) const;
 
   [[nodiscard]] nlohmann::json orderbook_json(const domain::Symbol& symbol,
                                               std::size_t max_levels = 32) const;
@@ -58,6 +63,7 @@ private:
   void record_and_apply_fills(const matching::SubmitResult& result);
   void update_reference_from_quote(const domain::Quote& q);
 
+  const std::vector<domain::Symbol> tradable_symbols_;
   mutable std::mutex mu_;
   portfolio::Portfolio portfolio_;
   risk::RiskManager risk_;

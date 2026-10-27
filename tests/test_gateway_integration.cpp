@@ -120,4 +120,39 @@ TEST(GatewayIntegration, ErrorHandlerKeepsSpecificErrorBodies) {
   th.join();
 }
 
+TEST(GatewayIntegration, UnknownSymbolRejected) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::gateway::SimulatorService svc(limits, 100'000'000, {"AAPL", "MSFT"});
+
+  const marketsim::matching::SubmitRequest appl{.symbol = "APPL",
+                                                .side = marketsim::domain::Side::Buy,
+                                                .type = marketsim::domain::OrderType::Limit,
+                                                .limit_price = 100,
+                                                .quantity = 1};
+  const auto placed = svc.place_order(appl, std::nullopt);
+  EXPECT_EQ(placed.first, 422);
+  EXPECT_EQ(placed.second.at("error").get<std::string>(), "unknown_symbol");
+
+  httplib::Server svr;
+  marketsim::gateway::register_http_api(svr, svc);
+
+  const int port = 18192;
+  std::thread th([&]() { svr.listen("127.0.0.1", port); });
+  ASSERT_TRUE(marketsim::gateway::wait_until_server_running(svr));
+
+  httplib::Client cli("127.0.0.1", port);
+
+  const auto quote = cli.Get("/api/v1/quote/AAPL");
+  ASSERT_TRUE(quote);
+  EXPECT_EQ(quote->status, 200);
+
+  const auto ob = cli.Get("/api/v1/orderbook/APPL");
+  ASSERT_TRUE(ob);
+  EXPECT_EQ(ob->status, 404);
+  EXPECT_EQ(nlohmann::json::parse(ob->body).at("error").get<std::string>(), "unknown_symbol");
+
+  svr.stop();
+  th.join();
+}
+
 }

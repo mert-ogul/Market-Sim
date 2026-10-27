@@ -80,7 +80,8 @@ SubmitResult MatchingEngine::submit_order(const SubmitRequest& request) {
     out.reject = SubmitRejectReason::InvalidQuantity;
     return out;
   }
-  if (request.type == domain::OrderType::Limit && !request.limit_price.has_value()) {
+  if (request.type == domain::OrderType::Limit &&
+      (!request.limit_price.has_value() || *request.limit_price <= 0)) {
     out.reject = SubmitRejectReason::InvalidLimitPrice;
     return out;
   }

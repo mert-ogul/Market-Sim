@@ -40,8 +40,8 @@ namespace {
     return std::nullopt;
   }
   const auto v = j.get<std::int64_t>();
-  if (v < 0) {
-    err = {"invalid_price", "price must be non-negative"};
+  if (v <= 0) {
+    err = {"invalid_price", "price must be positive"};
     return std::nullopt;
   }
   return static_cast<marketsim::domain::PriceCents>(v);
