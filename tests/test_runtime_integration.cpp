@@ -29,7 +29,8 @@ TEST(RuntimeIntegration, ApplyMarkFromTickSetsRiskReferenceForMarketBuy) {
                                             .side = marketsim::domain::Side::Sell,
                                             .type = marketsim::domain::OrderType::Limit,
                                             .limit_price = 10'000,
-                                            .quantity = 10};
+                                            .quantity = 10,
+                                            .owner = marketsim::domain::kMarketMakerAccount};
   const auto sr = svc.place_order(sell, std::nullopt);
   ASSERT_EQ(sr.first, 200);
 
@@ -49,6 +50,60 @@ TEST(RuntimeIntegration, ApplyMarkFromTickSetsRiskReferenceForMarketBuy) {
   EXPECT_EQ(br.first, 200);
   const auto pj = svc.portfolio_json();
   EXPECT_LT(pj["cash_cents"].get<std::int64_t>(), 100'000'000);
+}
+
+TEST(RuntimeIntegration, PassiveFillUpdatesTraderPortfolio) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::gateway::SimulatorService svc(limits, 1'000'000);
+
+  const marketsim::matching::SubmitRequest buy{.symbol = "AAPL",
+                                               .side = marketsim::domain::Side::Buy,
+                                               .type = marketsim::domain::OrderType::Limit,
+                                               .limit_price = 1'000,
+                                               .quantity = 10};
+  ASSERT_EQ(svc.place_order(buy, std::nullopt).first, 200);
+
+  const marketsim::matching::SubmitRequest sell{.symbol = "AAPL",
+                                                .side = marketsim::domain::Side::Sell,
+                                                .type = marketsim::domain::OrderType::Market,
+                                                .limit_price = std::nullopt,
+                                                .quantity = 10,
+                                                .owner = marketsim::domain::kMarketMakerAccount};
+  ASSERT_EQ(svc.place_order(sell, std::nullopt).first, 200);
+
+  const auto pj = svc.portfolio_json();
+  EXPECT_EQ(pj["cash_cents"].get<std::int64_t>(), 990'000);
+  ASSERT_EQ(pj["positions"].size(), 1u);
+  EXPECT_EQ(pj["positions"][0]["quantity"].get<std::int64_t>(), 10);
+}
+
+TEST(RuntimeIntegration, TraderCannotTradeWithOwnOrder) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::gateway::SimulatorService svc(limits, 1'000'000);
+
+  const marketsim::matching::SubmitRequest buy{.symbol = "AAPL",
+                                               .side = marketsim::domain::Side::Buy,
+                                               .type = marketsim::domain::OrderType::Limit,
+                                               .limit_price = 1'000,
+                                               .quantity = 10};
+  const auto br = svc.place_order(buy, std::nullopt);
+  ASSERT_EQ(br.first, 200);
+  const auto buy_id = br.second.at("order_id").get<std::uint64_t>();
+
+  const marketsim::matching::SubmitRequest sell{.symbol = "AAPL",
+                                                .side = marketsim::domain::Side::Sell,
+                                                .type = marketsim::domain::OrderType::Limit,
+                                                .limit_price = 1'000,
+                                                .quantity = 10};
+  const auto sr = svc.place_order(sell, std::nullopt);
+  ASSERT_EQ(sr.first, 200);
+  EXPECT_TRUE(sr.second.at("trades").empty());
+  ASSERT_EQ(sr.second.at("self_trade_cancelled_order_ids").size(), 1u);
+  EXPECT_EQ(sr.second.at("self_trade_cancelled_order_ids")[0].get<std::uint64_t>(), buy_id);
+
+  const auto pj = svc.portfolio_json();
+  EXPECT_EQ(pj["cash_cents"].get<std::int64_t>(), 1'000'000);
+  EXPECT_TRUE(pj["positions"].empty());
 }
 
 TEST(RuntimeIntegration, StartStopIdempotent) {

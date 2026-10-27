@@ -30,6 +30,7 @@ struct SubmitRequest {
   /// Required for limit orders; ignored for market orders.
   std::optional<domain::PriceCents> limit_price{};
   domain::Quantity quantity{0};
+  domain::AccountId owner{domain::kTraderAccount};
 };
 
 struct SubmitResult {
@@ -39,6 +40,9 @@ struct SubmitResult {
   /// Resting size after submit (0 for fully filled or market IOC).
   domain::Quantity resting_quantity{0};
   std::vector<TradeFill> trades;
+  /// Resting orders of the same owner that this order would have crossed; they are cancelled
+  /// instead of trading (self-trade prevention, cancel-resting).
+  std::vector<domain::OrderId> self_trade_cancelled_ids;
   std::optional<domain::Quote> quote_after;
 };
 

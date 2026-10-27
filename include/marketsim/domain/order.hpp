@@ -20,6 +20,7 @@ struct Order {
   /// Remaining size after partial fills; equals @c quantity until fills occur.
   Quantity remaining{0};
   SimTime created_time{0};
+  AccountId owner{kTraderAccount};
 };
 
 }
