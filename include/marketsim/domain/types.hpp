@@ -29,4 +29,13 @@ using Quantity = std::int64_t;
 /// Tradable instrument id (e.g. "AAPL"); kept as string for clarity at boundaries.
 using Symbol = std::string;
 
+/// Participant that owns orders and receives fills.
+using AccountId = std::uint32_t;
+
+/// The human trader (REST and dashboard); the only account with a portfolio.
+inline constexpr AccountId kTraderAccount = 1;
+
+/// Simulated liquidity provider quoting around the feed price.
+inline constexpr AccountId kMarketMakerAccount = 2;
+
 }

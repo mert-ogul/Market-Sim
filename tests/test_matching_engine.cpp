@@ -23,6 +23,7 @@ SubmitRequest limit_buy(const std::string& sym, const PriceCents px, const Quant
   return r;
 }
 
+// Sells come from a different account than buys so these scenarios are not self-trades.
 SubmitRequest limit_sell(const std::string& sym, const PriceCents px, const Quantity qty) {
   SubmitRequest r;
   r.symbol = sym;
@@ -30,6 +31,7 @@ SubmitRequest limit_sell(const std::string& sym, const PriceCents px, const Quan
   r.type = OrderType::Limit;
   r.limit_price = px;
   r.quantity = qty;
+  r.owner = marketsim::domain::kMarketMakerAccount;
   return r;
 }
 
@@ -48,6 +50,7 @@ SubmitRequest market_sell(const std::string& sym, const Quantity qty) {
   r.side = Side::Sell;
   r.type = OrderType::Market;
   r.quantity = qty;
+  r.owner = marketsim::domain::kMarketMakerAccount;
   return r;
 }
 
@@ -198,6 +201,36 @@ TEST(MatchingEngine, RejectsInvalidRequests) {
   EXPECT_EQ(engine.submit_order(bad_mkt).reject, SubmitRejectReason::InvalidLimitPrice);
 
   EXPECT_EQ(engine.submit_order(limit_sell("AAPL", 0, 1)).reject, SubmitRejectReason::InvalidLimitPrice);
+}
+
+TEST(MatchingEngine, TradesCarryBothOwners) {
+  MatchingEngine engine;
+  ASSERT_TRUE(engine.submit_order(limit_sell("AAPL", 100, 5)).accepted);
+  const auto r = engine.submit_order(limit_buy("AAPL", 100, 5));
+  ASSERT_TRUE(r.accepted);
+  ASSERT_EQ(r.trades.size(), 1U);
+  EXPECT_EQ(r.trades[0].trade.passive_owner, marketsim::domain::kMarketMakerAccount);
+  EXPECT_EQ(r.trades[0].trade.aggressive_owner, marketsim::domain::kTraderAccount);
+}
+
+TEST(MatchingEngine, SelfTradeCancelsRestingOrderInsteadOfMatching) {
+  MatchingEngine engine;
+  auto own_sell = limit_sell("AAPL", 100, 5);
+  own_sell.owner = marketsim::domain::kTraderAccount;
+  const auto resting = engine.submit_order(own_sell);
+  ASSERT_TRUE(resting.accepted);
+  const auto first_id = resting.order_id;
+
+  ASSERT_TRUE(engine.submit_order(limit_sell("AAPL", 101, 5)).accepted);
+
+  const auto r = engine.submit_order(limit_buy("AAPL", 101, 8));
+  ASSERT_TRUE(r.accepted);
+  ASSERT_EQ(r.self_trade_cancelled_ids, (std::vector<marketsim::domain::OrderId>{first_id}));
+  ASSERT_EQ(r.trades.size(), 1U);
+  EXPECT_EQ(r.trades[0].trade.price, 101);
+  EXPECT_EQ(r.trades[0].trade.quantity, 5);
+  EXPECT_EQ(r.resting_quantity, 3);
+  EXPECT_FALSE(engine.cancel_order(first_id).cancelled);
 }
 
 }

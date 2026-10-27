@@ -61,6 +61,7 @@ public:
 
 private:
   void record_and_apply_fills(const matching::SubmitResult& result);
+  void apply_trader_fill(domain::Side side, const domain::Trade& trade);
   void update_reference_from_quote(const domain::Quote& q);
 
   const std::vector<domain::Symbol> tradable_symbols_;

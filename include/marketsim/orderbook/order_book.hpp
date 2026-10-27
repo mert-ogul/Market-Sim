@@ -71,6 +71,9 @@ public:
   /// Oldest order id at the best bid (FIFO); for matching against incoming sells.
   [[nodiscard]] std::optional<domain::OrderId> front_order_id_best_bid() const;
 
+  /// Returns nullptr for an unknown id. Pointer is invalidated by any mutation of the book.
+  [[nodiscard]] const domain::Order* find_order(domain::OrderId id) const;
+
   /// Remaining quantity for a resting order, if present.
   [[nodiscard]] std::optional<domain::Quantity> remaining_quantity(domain::OrderId id) const;
 

@@ -36,18 +36,19 @@ namespace {
 }
 
 [[nodiscard]] domain::Trade make_trade(const domain::OrderId passive_id,
-                                       const domain::OrderId aggressive_id,
-                                       const domain::Symbol& symbol, const domain::Side aggressive_side,
-                                       const domain::PriceCents price, const domain::Quantity qty,
-                                       const domain::SimTime time) {
+                                       const domain::AccountId passive_owner,
+                                       const domain::Order& aggressive, const domain::PriceCents price,
+                                       const domain::Quantity qty, const domain::SimTime time) {
   domain::Trade trade;
   trade.passive_order_id = passive_id;
-  trade.aggressive_order_id = aggressive_id;
-  trade.symbol = symbol;
-  trade.aggressive_side = aggressive_side;
+  trade.aggressive_order_id = aggressive.id;
+  trade.symbol = aggressive.symbol;
+  trade.aggressive_side = aggressive.side;
   trade.price = price;
   trade.quantity = qty;
   trade.time = time;
+  trade.passive_owner = passive_owner;
+  trade.aggressive_owner = aggressive.owner;
   return trade;
 }
 
@@ -103,6 +104,7 @@ SubmitResult MatchingEngine::submit_order(const SubmitRequest& request) {
   order.quantity = request.quantity;
   order.remaining = request.quantity;
   order.created_time = sim_time_;
+  order.owner = request.owner;
 
   if (request.side == domain::Side::Buy) {
     auto& trades = out.trades;
@@ -111,6 +113,17 @@ SubmitResult MatchingEngine::submit_order(const SubmitRequest& request) {
       if (!passive_id.has_value()) {
         break;
       }
+      const domain::Order* passive = book.find_order(*passive_id);
+      if (passive == nullptr) {
+        break;
+      }
+      if (passive->owner == request.owner) {
+        (void)book.cancel_order(*passive_id);
+        order_to_symbol_.erase(*passive_id);
+        out.self_trade_cancelled_ids.push_back(*passive_id);
+        continue;
+      }
+      const domain::AccountId passive_owner = passive->owner;
       const auto passive_rem = book.remaining_quantity(*passive_id);
       if (!passive_rem.has_value() || *passive_rem <= 0) {
         break;
@@ -128,8 +141,7 @@ SubmitResult MatchingEngine::submit_order(const SubmitRequest& request) {
       }
       TradeFill fill;
       fill.trade_id = next_trade_id_++;
-      fill.trade = make_trade(*passive_id, id, request.symbol, domain::Side::Buy, *ask_px,
-                              fill_qty, sim_time_);
+      fill.trade = make_trade(*passive_id, passive_owner, order, *ask_px, fill_qty, sim_time_);
       trades.push_back(fill);
       order.remaining -= fill_qty;
       ++sim_time_;
@@ -141,6 +153,17 @@ SubmitResult MatchingEngine::submit_order(const SubmitRequest& request) {
       if (!passive_id.has_value()) {
         break;
       }
+      const domain::Order* passive = book.find_order(*passive_id);
+      if (passive == nullptr) {
+        break;
+      }
+      if (passive->owner == request.owner) {
+        (void)book.cancel_order(*passive_id);
+        order_to_symbol_.erase(*passive_id);
+        out.self_trade_cancelled_ids.push_back(*passive_id);
+        continue;
+      }
+      const domain::AccountId passive_owner = passive->owner;
       const auto passive_rem = book.remaining_quantity(*passive_id);
       if (!passive_rem.has_value() || *passive_rem <= 0) {
         break;
@@ -158,8 +181,7 @@ SubmitResult MatchingEngine::submit_order(const SubmitRequest& request) {
       }
       TradeFill fill;
       fill.trade_id = next_trade_id_++;
-      fill.trade = make_trade(*passive_id, id, request.symbol, domain::Side::Sell, *bid_px,
-                              fill_qty, sim_time_);
+      fill.trade = make_trade(*passive_id, passive_owner, order, *bid_px, fill_qty, sim_time_);
       trades.push_back(fill);
       order.remaining -= fill_qty;
       ++sim_time_;

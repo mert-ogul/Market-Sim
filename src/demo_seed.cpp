@@ -16,14 +16,16 @@ void seed_demo_liquidity(SimulatorService& svc, const domain::Symbol& symbol,
                                     .side = Side::Buy,
                                     .type = OrderType::Limit,
                                     .limit_price = std::max<domain::PriceCents>(1, reference_mid_cents - kSpreadCents),
-                                    .quantity = 800};
+                                    .quantity = 800,
+                                    .owner = domain::kMarketMakerAccount};
   (void)svc.place_order(bid, std::nullopt);
 
   const matching::SubmitRequest ask{.symbol = symbol,
                                     .side = Side::Sell,
                                     .type = OrderType::Limit,
                                     .limit_price = reference_mid_cents + kSpreadCents,
-                                    .quantity = 800};
+                                    .quantity = 800,
+                                    .owner = domain::kMarketMakerAccount};
   (void)svc.place_order(ask, std::nullopt);
 }
 

@@ -75,6 +75,10 @@ namespace {
   return j;
 }
 
+[[nodiscard]] domain::Side opposite(const domain::Side side) {
+  return side == domain::Side::Buy ? domain::Side::Sell : domain::Side::Buy;
+}
+
 }
 
 SimulatorService::SimulatorService(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents,
@@ -103,15 +107,25 @@ void SimulatorService::update_reference_from_quote(const domain::Quote& q) {
   }
 }
 
+void SimulatorService::apply_trader_fill(const domain::Side side, const domain::Trade& trade) {
+  const bool applied = portfolio_.apply_fill(side, trade.symbol, trade.price, trade.quantity);
+  assert(applied && "portfolio apply_fill must succeed for engine-emitted trades");
+  (void)applied;
+}
+
 void SimulatorService::record_and_apply_fills(const matching::SubmitResult& result) {
   for (const matching::TradeFill& fill : result.trades) {
     trades_.push_back({fill.trade_id, fill.trade});
     if (trades_.size() > kMaxTrades) {
       trades_.pop_front();
     }
-    const bool applied = portfolio_.apply_fill(fill.trade.aggressive_side, fill.trade.symbol,
-                                               fill.trade.price, fill.trade.quantity);
-    assert(applied && "portfolio apply_fill must succeed for engine-emitted trades");
+    const domain::Trade& trade = fill.trade;
+    if (trade.aggressive_owner == domain::kTraderAccount) {
+      apply_trader_fill(trade.aggressive_side, trade);
+    }
+    if (trade.passive_owner == domain::kTraderAccount) {
+      apply_trader_fill(opposite(trade.aggressive_side), trade);
+    }
     risk_.set_reference(fill.trade.symbol, fill.trade.price);
   }
   if (result.quote_after.has_value()) {
@@ -189,6 +203,7 @@ std::pair<int, nlohmann::json> SimulatorService::place_order(const matching::Sub
     arr.push_back(std::move(t));
   }
   out["trades"] = std::move(arr);
+  out["self_trade_cancelled_order_ids"] = sr.self_trade_cancelled_ids;
   if (sr.quote_after.has_value()) {
     out["quote"] = quote_to_json(*sr.quote_after);
   }
