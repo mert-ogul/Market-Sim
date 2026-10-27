@@ -22,7 +22,8 @@ struct TradeTapeRow {
   std::string symbol;
   std::int64_t price_cents{};
   std::int64_t quantity{};
-  bool aggressive_buy{};
+  /// Side from the trader's point of view (the tape only holds trades the trader took part in).
+  bool trader_buy{};
   std::uint64_t sim_time{};
 };
 
@@ -34,6 +35,15 @@ struct PositionRow {
   std::int64_t market_value_cents{};
 };
 
+/// Trader's resting order.
+struct OpenOrderRow {
+  std::uint64_t order_id{};
+  std::string symbol;
+  bool buy{};
+  std::int64_t price_cents{};
+  std::int64_t remaining{};
+};
+
 /// Immutable read model: engine + portfolio + tape under one logical snapshot.
 struct SimulatorSnapshot {
   std::chrono::system_clock::time_point captured_at{};
@@ -42,6 +52,8 @@ struct SimulatorSnapshot {
   std::optional<std::int64_t> best_bid_cents;
   std::optional<std::int64_t> best_ask_cents;
   std::optional<std::int64_t> mid_price_cents;
+  /// Latest feed price for the focus symbol.
+  std::optional<std::int64_t> last_price_cents;
   std::vector<BookDepthRow> bids;
   std::vector<BookDepthRow> asks;
   std::int64_t cash_cents{};
@@ -50,6 +62,7 @@ struct SimulatorSnapshot {
   std::int64_t total_unrealized_pnl_cents{};
   std::vector<PositionRow> positions;
   std::vector<TradeTapeRow> trades;
+  std::vector<OpenOrderRow> open_orders;
 };
 
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace marketsim::gateway {
 class SimulatorService;
@@ -10,6 +11,8 @@ namespace marketsim::ui {
 
 struct DashboardAppOptions {
   std::string focus_symbol{"AAPL"};
+  /// Symbols cycled with '[' and ']'; empty keeps the focus symbol fixed.
+  std::vector<std::string> symbols;
   int refresh_interval_ms{120};
 };
 

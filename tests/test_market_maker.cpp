@@ -93,6 +93,11 @@ TEST(MarketMaker, RestingTraderOrderFillsWhenPriceMovesThroughIt) {
   EXPECT_EQ(pj["cash_cents"].get<std::int64_t>(), 1'000'000 - 10 * 9'990);
   ASSERT_EQ(pj["positions"].size(), 1u);
   EXPECT_EQ(pj["positions"][0]["quantity"].get<std::int64_t>(), 10);
+
+  const auto tj = svc.trades_json();
+  ASSERT_EQ(tj.at("trades").size(), 1u);
+  EXPECT_EQ(tj.at("trades")[0].at("side").get<std::string>(), "buy");
+  EXPECT_EQ(tj.at("trades")[0].at("aggressive_side").get<std::string>(), "sell");
 }
 
 }

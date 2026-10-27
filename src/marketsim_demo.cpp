@@ -75,7 +75,8 @@ int main(int argc, char* argv[]) {
   std::cout << "Quit UI (q) or send SIGINT to exit\n";
 
   const int ui_rc = marketsim::ui::run_dashboard_loop(
-      runtime.service(), marketsim::ui::DashboardAppOptions{.focus_symbol = ui_symbol});
+      runtime.service(),
+      marketsim::ui::DashboardAppOptions{.focus_symbol = ui_symbol, .symbols = runtime.pump_order()});
 
   g_shutdown.store(true, std::memory_order_relaxed);
   svr.stop();

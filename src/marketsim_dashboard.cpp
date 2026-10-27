@@ -28,8 +28,9 @@ int main(int argc, char* argv[]) {
   marketsim::runtime::SimulatorRuntime runtime(cfg.account.limits, cfg.account.cash_cents, cfg);
   runtime.start();
 
-  const int rc = marketsim::ui::run_dashboard_loop(runtime.service(),
-                                                     marketsim::ui::DashboardAppOptions{.focus_symbol = symbol});
+  const int rc = marketsim::ui::run_dashboard_loop(
+      runtime.service(),
+      marketsim::ui::DashboardAppOptions{.focus_symbol = symbol, .symbols = runtime.pump_order()});
   runtime.stop();
   return rc;
 }
