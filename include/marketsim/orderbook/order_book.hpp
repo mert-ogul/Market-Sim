@@ -74,6 +74,9 @@ public:
   /// Returns nullptr for an unknown id. Pointer is invalidated by any mutation of the book.
   [[nodiscard]] const domain::Order* find_order(domain::OrderId id) const;
 
+  /// Resting orders of @p owner, bids (best first) then asks (best first).
+  [[nodiscard]] std::vector<domain::Order> orders_owned_by(domain::AccountId owner) const;
+
   /// Remaining quantity for a resting order, if present.
   [[nodiscard]] std::optional<domain::Quantity> remaining_quantity(domain::OrderId id) const;
 

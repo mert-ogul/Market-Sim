@@ -52,6 +52,12 @@ public:
 
   [[nodiscard]] nlohmann::json portfolio_json() const;
 
+  /// Resting trader orders: id, symbol, side, limit price, size and remaining.
+  [[nodiscard]] nlohmann::json open_orders_json() const;
+
+  /// Configured symbols with last feed price (null until the first tick).
+  [[nodiscard]] nlohmann::json symbols_json() const;
+
   [[nodiscard]] nlohmann::json trades_json(std::size_t max_rows = 500) const;
 
   /// Single-lock read model for UIs and tooling (structured portfolio fields, no JSON parse).
@@ -67,6 +73,7 @@ private:
   void apply_trader_fill(domain::Side side, const domain::Trade& trade);
   void update_reference_from_quote(const domain::Quote& q);
   void requote_market_maker(const domain::Symbol& symbol, domain::PriceCents mid_cents);
+  [[nodiscard]] nlohmann::json last_price_json(const domain::Symbol& symbol) const;
 
   const std::vector<domain::Symbol> tradable_symbols_;
   mutable std::mutex mu_;
@@ -76,6 +83,7 @@ private:
   std::deque<std::pair<domain::TradeId, domain::Trade>> trades_;
   const domain::MarketMakerSettings market_maker_;
   std::unordered_map<domain::Symbol, std::vector<domain::OrderId>> market_maker_orders_;
+  std::unordered_map<domain::Symbol, domain::PriceCents> last_prices_;
   static constexpr std::size_t kMaxTrades = 10'000;
 };
 

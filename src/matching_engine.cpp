@@ -245,6 +245,18 @@ domain::Quote MatchingEngine::quote_snapshot(const domain::Symbol& symbol) const
   return make_quote(symbol, *book);
 }
 
+std::vector<domain::Order> MatchingEngine::open_orders(const domain::AccountId owner) const {
+  std::vector<domain::Order> out;
+  for (const auto& [symbol, book] : books_) {
+    (void)symbol;
+    const auto owned = book.orders_owned_by(owner);
+    out.insert(out.end(), owned.begin(), owned.end());
+  }
+  std::sort(out.begin(), out.end(),
+            [](const domain::Order& a, const domain::Order& b) { return a.id < b.id; });
+  return out;
+}
+
 std::vector<orderbook::OrderBook::DepthLevel> MatchingEngine::orderbook_bids(
     const domain::Symbol& symbol, const std::size_t max_levels) const {
   const orderbook::OrderBook* book = find_book(symbol);

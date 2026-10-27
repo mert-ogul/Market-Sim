@@ -284,6 +284,23 @@ const domain::Order* OrderBook::find_order(const domain::OrderId id) const {
   return &(*it->second.it);
 }
 
+std::vector<domain::Order> OrderBook::orders_owned_by(const domain::AccountId owner) const {
+  std::vector<domain::Order> out;
+  const auto append_side = [&](const auto& side) {
+    for (const auto& [price, level] : side) {
+      (void)price;
+      for (const domain::Order& order : level.orders) {
+        if (order.owner == owner) {
+          out.push_back(order);
+        }
+      }
+    }
+  };
+  append_side(impl_->bids);
+  append_side(impl_->asks);
+  return out;
+}
+
 std::optional<domain::Quantity> OrderBook::remaining_quantity(const domain::OrderId id) const {
   const auto it = impl_->index.find(id);
   if (it == impl_->index.end()) {
