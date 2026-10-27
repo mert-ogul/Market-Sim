@@ -109,7 +109,7 @@ add_executable(marketsim_server
   src/marketsim_server.cpp
   ${MARKETSIM_GATEWAY_SOURCES}
 )
-target_include_directories(marketsim_server PRIVATE ${httplib_SOURCE_DIR})
+target_include_directories(marketsim_server SYSTEM PRIVATE ${httplib_SOURCE_DIR})
 target_link_libraries(marketsim_server PRIVATE marketsim::runtime Threads::Threads)
 marketsim_apply_warnings(marketsim_server PRIVATE)
 
@@ -129,7 +129,7 @@ add_executable(marketsim_demo
   src/marketsim_demo.cpp
   ${MARKETSIM_GATEWAY_SOURCES}
 )
-target_include_directories(marketsim_demo PRIVATE ${httplib_SOURCE_DIR})
+target_include_directories(marketsim_demo SYSTEM PRIVATE ${httplib_SOURCE_DIR})
 target_link_libraries(marketsim_demo PRIVATE
   marketsim::runtime
   marketsim::dashboard_driver
