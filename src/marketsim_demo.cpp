@@ -57,6 +57,7 @@ int main(int argc, char* argv[]) {
   httplib::Server svr;
   marketsim::gateway::register_http_api(svr, runtime.service());
   marketsim::gateway::install_json_not_found_handler(svr);
+  const bool web_ui = marketsim::gateway::mount_web_ui(svr);
 
   std::signal(SIGINT, handle_signal);
   std::signal(SIGTERM, handle_signal);
@@ -72,6 +73,9 @@ int main(int argc, char* argv[]) {
   }
 
   std::cout << "Integrated demo: REST http://" << host << ':' << port << " | UI symbol " << ui_symbol << '\n';
+  if (web_ui) {
+    std::cout << "web UI: http://localhost:" << port << '\n';
+  }
   std::cout << "Quit UI (q) or send SIGINT to exit\n";
 
   const int ui_rc = marketsim::ui::run_dashboard_loop(

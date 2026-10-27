@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Market Sim</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand">Market Sim</div>
+    <div class="index" id="index-block" hidden>
+      <span class="index-name" id="index-name"></span>
+      <span class="index-value" id="index-value"></span>
+      <span class="index-change" id="index-change"></span>
+    </div>
+    <dl class="account-summary">
+      <div>
+        <dt>Cash</dt>
+        <dd id="cash">—</dd>
+      </div>
+      <div>
+        <dt>Equity</dt>
+        <dd id="equity">—</dd>
+      </div>
+      <div>
+        <dt>Profit and loss</dt>
+        <dd id="pnl">—</dd>
+      </div>
+    </dl>
+  </header>
+
+  <p class="status-line" id="status-line" hidden role="status" aria-live="polite">
+    Can't reach the simulator. Retrying every second.
+  </p>
+
+  <section class="board" aria-labelledby="board-heading">
+    <h2 id="board-heading" class="visually-hidden">Market board</h2>
+    <div class="board-grid" id="board"></div>
+  </section>
+
+  <div class="workspace">
+    <section class="focus" aria-labelledby="focus-heading">
+      <div class="focus-head">
+        <h2 id="focus-heading"><span id="company-title">—</span></h2>
+        <div class="focus-price">
+          <span id="focus-last">—</span>
+          <span id="focus-change"></span>
+        </div>
+      </div>
+      <canvas id="chart" width="800" height="260" aria-label="Price chart for the selected stock"></canvas>
+      <div class="orderbook-wrap">
+        <h3>Order book</h3>
+        <table class="data-table orderbook">
+          <thead>
+            <tr>
+              <th scope="col">Bid size</th>
+              <th scope="col">Price</th>
+              <th scope="col">Ask size</th>
+            </tr>
+          </thead>
+          <tbody id="orderbook-body">
+            <tr><td colspan="3" class="empty">No orders in the book yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="side">
+      <form class="order-form" id="order-form" novalidate>
+        <h3>Place an order</h3>
+
+        <fieldset class="segment">
+          <legend class="visually-hidden">Side</legend>
+          <label><input type="radio" name="side" value="buy" checked> Buy</label>
+          <label><input type="radio" name="side" value="sell"> Sell</label>
+        </fieldset>
+
+        <fieldset class="segment">
+          <legend class="visually-hidden">Order type</legend>
+          <label><input type="radio" name="type" value="market" checked> Market</label>
+          <label><input type="radio" name="type" value="limit"> Limit</label>
+        </fieldset>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Shares</span>
+            <input id="shares" name="shares" type="number" inputmode="numeric" min="1" step="1" value="10" required>
+          </label>
+          <label class="field">
+            <span>Limit price ($)</span>
+            <input id="limit-price" name="limit_price" type="number" inputmode="decimal" min="0.01" step="0.01" disabled>
+          </label>
+        </div>
+
+        <button type="submit" id="submit-order" class="submit buy">Buy 10 AAPL at market</button>
+        <p class="form-result" id="form-result" role="status" aria-live="polite"></p>
+      </form>
+
+      <section aria-labelledby="positions-heading">
+        <h3 id="positions-heading">Positions</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Stock</th>
+              <th scope="col">Shares</th>
+              <th scope="col">Avg cost</th>
+              <th scope="col">P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody id="positions-body">
+            <tr><td colspan="4" class="empty">No positions yet. Buy a stock with the order form above.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="orders-heading">
+        <h3 id="orders-heading">Open orders</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Order</th>
+              <th scope="col">Limit price</th>
+              <th scope="col"><span class="visually-hidden">Cancel</span></th>
+            </tr>
+          </thead>
+          <tbody id="orders-body">
+            <tr><td colspan="3" class="empty">No open orders. Limit orders wait here until the price reaches them.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="trades-heading">
+        <h3 id="trades-heading">Your trades</h3>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Trade</th>
+              <th scope="col">Price</th>
+            </tr>
+          </thead>
+          <tbody id="trades-body">
+            <tr><td colspan="2" class="empty">No trades yet.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </aside>
+  </div>
+
+  <footer class="page-footer">
+    Prices are simulated. Nothing on this page is real market data.
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
