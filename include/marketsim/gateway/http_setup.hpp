@@ -11,8 +11,12 @@
 namespace marketsim::gateway {
 
 /// JSON body for unknown routes (keeps REST clients consistent).
+/// Responses that already carry a body (validation, risk and engine errors) are left untouched.
 inline void install_json_not_found_handler(httplib::Server& server) {
   server.set_error_handler([](const httplib::Request&, httplib::Response& res) {
+    if (!res.body.empty()) {
+      return;
+    }
     if (res.status == 0) {
       res.status = 404;
     }
