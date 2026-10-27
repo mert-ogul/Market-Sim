@@ -27,6 +27,9 @@ public:
   /// Top-of-book for a symbol (empty sides if no book or no liquidity).
   [[nodiscard]] domain::Quote quote_snapshot(const domain::Symbol& symbol) const;
 
+  /// All resting orders of @p owner across symbols, oldest first.
+  [[nodiscard]] std::vector<domain::Order> open_orders(domain::AccountId owner) const;
+
   /// Depth snapshot; empty vectors if the symbol has no book yet.
   [[nodiscard]] std::vector<orderbook::OrderBook::DepthLevel> orderbook_bids(
       const domain::Symbol& symbol, std::size_t max_levels) const;

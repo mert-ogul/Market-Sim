@@ -156,9 +156,19 @@ nlohmann::json SimulatorService::orderbook_json(const domain::Symbol& symbol,
   return j;
 }
 
+nlohmann::json SimulatorService::last_price_json(const domain::Symbol& symbol) const {
+  const auto it = last_prices_.find(symbol);
+  if (it == last_prices_.end()) {
+    return nullptr;
+  }
+  return it->second;
+}
+
 nlohmann::json SimulatorService::quote_json(const domain::Symbol& symbol) const {
   std::lock_guard lock(mu_);
-  return quote_to_json(engine_.quote_snapshot(symbol));
+  nlohmann::json j = quote_to_json(engine_.quote_snapshot(symbol));
+  j["last_price_cents"] = last_price_json(symbol);
+  return j;
 }
 
 std::pair<int, nlohmann::json> SimulatorService::place_order(const matching::SubmitRequest& request,
@@ -235,6 +245,38 @@ std::pair<int, nlohmann::json> SimulatorService::cancel_order(const domain::Orde
 nlohmann::json SimulatorService::portfolio_json() const {
   std::lock_guard lock(mu_);
   return portfolio_.to_json();
+}
+
+nlohmann::json SimulatorService::open_orders_json() const {
+  std::lock_guard lock(mu_);
+  auto arr = nlohmann::json::array();
+  for (const domain::Order& order : engine_.open_orders(domain::kTraderAccount)) {
+    nlohmann::json row;
+    row["order_id"] = order.id;
+    row["symbol"] = order.symbol;
+    row["side"] = order.side == domain::Side::Buy ? "buy" : "sell";
+    row["price_cents"] = order.limit_price.value_or(0);
+    row["quantity"] = order.quantity;
+    row["remaining"] = order.remaining;
+    arr.push_back(std::move(row));
+  }
+  nlohmann::json out;
+  out["orders"] = std::move(arr);
+  return out;
+}
+
+nlohmann::json SimulatorService::symbols_json() const {
+  std::lock_guard lock(mu_);
+  auto arr = nlohmann::json::array();
+  for (const domain::Symbol& symbol : tradable_symbols_) {
+    nlohmann::json row;
+    row["symbol"] = symbol;
+    row["last_price_cents"] = last_price_json(symbol);
+    arr.push_back(std::move(row));
+  }
+  nlohmann::json out;
+  out["symbols"] = std::move(arr);
+  return out;
 }
 
 nlohmann::json SimulatorService::trades_json(const std::size_t max_rows) const {
@@ -347,6 +389,7 @@ void SimulatorService::requote_market_maker(const domain::Symbol& symbol,
 
 void SimulatorService::apply_mark_from_tick(const domain::Tick& tick) {
   std::lock_guard lock(mu_);
+  last_prices_[tick.symbol] = tick.last_price;
   portfolio_.apply_mark(tick.symbol, tick.last_price);
   risk_.set_reference(tick.symbol, tick.last_price);
   if (market_maker_.enabled) {

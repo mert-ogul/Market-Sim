@@ -18,6 +18,14 @@ void register_http_api(httplib::Server& svr, SimulatorService& svc) {
     res.set_content(svc.portfolio_json().dump(), "application/json");
   });
 
+  svr.Get("/api/v1/orders", [&svc](const httplib::Request&, httplib::Response& res) {
+    res.set_content(svc.open_orders_json().dump(), "application/json");
+  });
+
+  svr.Get("/api/v1/symbols", [&svc](const httplib::Request&, httplib::Response& res) {
+    res.set_content(svc.symbols_json().dump(), "application/json");
+  });
+
   svr.Get("/api/v1/trades", [&svc](const httplib::Request&, httplib::Response& res) {
     res.set_content(svc.trades_json().dump(), "application/json");
   });
