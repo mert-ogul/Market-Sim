@@ -5,11 +5,18 @@
 #include <nlohmann/json.hpp>
 
 #include <fstream>
+#include <iostream>
+#include <string>
 #include <unordered_map>
 
 namespace marketsim::config {
 
 namespace {
+
+void warn_missing_initial_price(const std::string& ticker) {
+  std::cerr << "symbols config: skipping " << ticker
+            << " (not a built-in symbol, so initial_price_cents is required)\n";
+}
 
 [[nodiscard]] std::unordered_map<domain::Symbol, feed::GbmSymbolParams> default_params_map() {
   std::unordered_map<domain::Symbol, feed::GbmSymbolParams> m;
@@ -33,6 +40,10 @@ void parse_symbol_element(const nlohmann::json& el, const std::unordered_map<dom
   if (el.is_string()) {
     const std::string t = el.get<std::string>();
     if (!t.empty()) {
+      if (!defs.contains(t)) {
+        warn_missing_initial_price(t);
+        return;
+      }
       out.push_back(SymbolSpec{.ticker = t, .gbm = params_for_ticker(t, defs)});
     }
     return;
@@ -46,8 +57,13 @@ void parse_symbol_element(const nlohmann::json& el, const std::unordered_map<dom
   SymbolSpec s;
   s.ticker = el["symbol"].get<std::string>();
   s.gbm = params_for_ticker(s.ticker, defs);
+  bool has_positive_price = false;
   if (el.contains("initial_price_cents") && el["initial_price_cents"].is_number_integer()) {
-    s.gbm.initial_price_cents = el["initial_price_cents"].get<domain::PriceCents>();
+    const auto px = el["initial_price_cents"].get<domain::PriceCents>();
+    if (px > 0) {
+      s.gbm.initial_price_cents = px;
+      has_positive_price = true;
+    }
   }
   if (el.contains("drift") && el["drift"].is_number()) {
     s.gbm.drift = el["drift"].get<double>();
@@ -55,9 +71,14 @@ void parse_symbol_element(const nlohmann::json& el, const std::unordered_map<dom
   if (el.contains("volatility") && el["volatility"].is_number()) {
     s.gbm.volatility = el["volatility"].get<double>();
   }
-  if (!s.ticker.empty()) {
-    out.push_back(std::move(s));
+  if (s.ticker.empty()) {
+    return;
   }
+  if (!defs.contains(s.ticker) && !has_positive_price) {
+    warn_missing_initial_price(s.ticker);
+    return;
+  }
+  out.push_back(std::move(s));
 }
 
 }

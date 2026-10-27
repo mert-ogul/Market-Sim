@@ -32,6 +32,21 @@ TEST(SymbolsConfig, LoadValidFileOverridesSymbols) {
   EXPECT_EQ(c.pump_interval_ms, 10);
 }
 
+TEST(SymbolsConfig, UnknownTickerWithoutInitialPriceIsSkipped) {
+  const std::filesystem::path path =
+      std::filesystem::temp_directory_path() / "marketsim_sym_skip_test.json";
+  {
+    std::ofstream out(path);
+    out << R"({"symbols":["AAPL","NEWCO",{"symbol":"OTHER"},{"symbol":"PRICED","initial_price_cents":2500}]})";
+  }
+  const auto c = marketsim::config::load_symbols_config_or_defaults(path);
+  std::filesystem::remove(path);
+  ASSERT_EQ(c.symbols.size(), 2u);
+  EXPECT_EQ(c.symbols[0].ticker, "AAPL");
+  EXPECT_EQ(c.symbols[1].ticker, "PRICED");
+  EXPECT_EQ(c.symbols[1].gbm.initial_price_cents, 2500);
+}
+
 TEST(SymbolsConfig, InitialPriceHint) {
   auto c = marketsim::config::default_symbols_config();
   EXPECT_EQ(marketsim::config::initial_price_hint_cents(c, "AAPL"), 18'000);

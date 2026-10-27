@@ -6,6 +6,7 @@
 #include "marketsim/feed/gbm_model.hpp"
 #include "marketsim/feed/gbm_runner.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -71,6 +72,25 @@ TEST(GbmFeed, PriceRemainsPositiveManySteps) {
     ASSERT_TRUE(t.has_value());
     EXPECT_GE(t->last_price, 1);
   }
+}
+
+TEST(GbmFeed, LowPricedSymbolKeepsMoving) {
+  GbmFeedConfig cfg;
+  cfg.seed = 42;
+  cfg.dt_years = 2.5e-5;
+  GbmFeed feed(cfg);
+  feed.register_symbol("LOW", GbmSymbolParams{100, 0.0, 0.2});
+  const auto first = feed.next_tick("LOW");
+  ASSERT_TRUE(first.has_value());
+  auto lowest = first->last_price;
+  auto highest = first->last_price;
+  for (int i = 1; i < 10'000; ++i) {
+    const auto t = feed.next_tick("LOW");
+    ASSERT_TRUE(t.has_value());
+    lowest = std::min(lowest, t->last_price);
+    highest = std::max(highest, t->last_price);
+  }
+  EXPECT_LT(lowest, highest);
 }
 
 TEST(GbmFeed, UnknownSymbolReturnsNullopt) {

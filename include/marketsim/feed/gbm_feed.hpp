@@ -48,6 +48,7 @@ public:
 
 private:
   struct SymbolState {
+    /// Unrounded path value in cents; only the published tick is rounded, so sub-cent moves accumulate.
     double price{0.0};
     domain::Quantity cumulative_volume{0};
     domain::SimTime next_time{0};
