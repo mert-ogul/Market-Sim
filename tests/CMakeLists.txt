@@ -25,7 +25,7 @@ add_executable(marketsim_tests
   test_runtime_integration.cpp
   ${MARKETSIM_GATEWAY_SOURCES}
 )
-target_include_directories(marketsim_tests PRIVATE ${httplib_SOURCE_DIR})
+target_include_directories(marketsim_tests SYSTEM PRIVATE ${httplib_SOURCE_DIR})
 target_link_libraries(marketsim_tests PRIVATE
   marketsim::runtime
   marketsim::ui_model
