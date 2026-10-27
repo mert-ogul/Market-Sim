@@ -1,6 +1,7 @@
 #pragma once
 
 #include "marketsim/domain/market_maker_settings.hpp"
+#include "marketsim/domain/risk_config.hpp"
 #include "marketsim/domain/types.hpp"
 #include "marketsim/feed/gbm_feed.hpp"
 
@@ -15,13 +16,15 @@ struct SymbolSpec {
   feed::GbmSymbolParams gbm{};
 };
 
-/// Feed + symbol list loaded from JSON (or defaults).
+/// Feed, symbol list, trader account and market maker settings.
 struct SymbolsJsonConfig {
   std::vector<SymbolSpec> symbols;
   std::uint64_t feed_seed{42};
   double dt_years{1.0 / (252.0 * 390.0)};
   int pump_interval_ms{40};
   domain::MarketMakerSettings market_maker{.enabled = true};
+  /// Starting cash and pre-trade limits for the trader (limits of 0 are disabled).
+  domain::SimulationAccount account{.cash_cents = 100'000'000};
 };
 
 /// Built-in defaults: same symbols as `GbmFeed::register_default_symbols()` with table params.

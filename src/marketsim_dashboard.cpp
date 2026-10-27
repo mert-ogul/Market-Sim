@@ -1,5 +1,4 @@
 #include "marketsim/config/symbols_config.hpp"
-#include "marketsim/domain/risk_config.hpp"
 #include "marketsim/domain/types.hpp"
 #include "marketsim/runtime/simulator_runtime.hpp"
 #include "marketsim/ui/dashboard_app.hpp"
@@ -26,9 +25,7 @@ int main(int argc, char* argv[]) {
     return 2;
   }
 
-  marketsim::domain::RiskLimits limits{};
-  constexpr marketsim::domain::PriceCents kInitialCash = 100'000'000;
-  marketsim::runtime::SimulatorRuntime runtime(limits, kInitialCash, cfg);
+  marketsim::runtime::SimulatorRuntime runtime(cfg.account.limits, cfg.account.cash_cents, cfg);
   runtime.start();
 
   const int rc = marketsim::ui::run_dashboard_loop(runtime.service(),

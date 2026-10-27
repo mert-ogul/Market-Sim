@@ -47,6 +47,41 @@ TEST(SymbolsConfig, UnknownTickerWithoutInitialPriceIsSkipped) {
   EXPECT_EQ(c.symbols[1].gbm.initial_price_cents, 2500);
 }
 
+TEST(SymbolsConfig, AccountAndMarketMakerSections) {
+  const std::filesystem::path path =
+      std::filesystem::temp_directory_path() / "marketsim_sym_account_mm_test.json";
+  {
+    std::ofstream out(path);
+    out << R"({
+      "symbols":["AAPL"],
+      "account":{
+        "cash_cents":5000000,
+        "max_order_size":1000,
+        "max_position_per_symbol":2000,
+        "price_collar_cents":-5
+      },
+      "market_maker":{"enabled":false,"half_spread_bps":12,"quote_size":250}
+    })";
+  }
+  const auto c = marketsim::config::load_symbols_config_or_defaults(path);
+  std::filesystem::remove(path);
+  EXPECT_EQ(c.account.cash_cents, 5'000'000);
+  EXPECT_EQ(c.account.limits.max_order_size, 1000);
+  EXPECT_EQ(c.account.limits.max_position_per_symbol, 2000);
+  EXPECT_EQ(c.account.limits.price_collar_cents, 0);
+  EXPECT_FALSE(c.market_maker.enabled);
+  EXPECT_EQ(c.market_maker.half_spread_bps, 12);
+  EXPECT_EQ(c.market_maker.quote_size, 250);
+}
+
+TEST(SymbolsConfig, AccountAndMarketMakerDefaults) {
+  const auto c = marketsim::config::default_symbols_config();
+  EXPECT_EQ(c.account.cash_cents, 100'000'000);
+  EXPECT_EQ(c.account.limits.max_order_size, 0);
+  EXPECT_TRUE(c.market_maker.enabled);
+  EXPECT_EQ(c.market_maker.quote_size, 500);
+}
+
 TEST(SymbolsConfig, InitialPriceHint) {
   auto c = marketsim::config::default_symbols_config();
   EXPECT_EQ(marketsim::config::initial_price_hint_cents(c, "AAPL"), 18'000);

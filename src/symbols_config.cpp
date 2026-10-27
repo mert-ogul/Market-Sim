@@ -81,6 +81,34 @@ void parse_symbol_element(const nlohmann::json& el, const std::unordered_map<dom
   out.push_back(std::move(s));
 }
 
+// Copies obj[key] into target when present, an integer, and > 0 (or == 0 when allow_zero).
+void read_integer(const nlohmann::json& obj, const char* key, std::int64_t& target, bool allow_zero) {
+  if (!obj.contains(key) || !obj[key].is_number_integer()) {
+    return;
+  }
+  const auto v = obj[key].get<std::int64_t>();
+  if (v > 0 || (allow_zero && v == 0)) {
+    target = v;
+  }
+}
+
+void parse_account(const nlohmann::json& j, domain::SimulationAccount& account) {
+  read_integer(j, "cash_cents", account.cash_cents, false);
+  read_integer(j, "max_order_size", account.limits.max_order_size, true);
+  read_integer(j, "max_position_per_symbol", account.limits.max_position_per_symbol, true);
+  read_integer(j, "min_price_cents", account.limits.min_price_cents, true);
+  read_integer(j, "max_price_cents", account.limits.max_price_cents, true);
+  read_integer(j, "price_collar_cents", account.limits.price_collar_cents, true);
+}
+
+void parse_market_maker(const nlohmann::json& j, domain::MarketMakerSettings& settings) {
+  if (j.contains("enabled") && j["enabled"].is_boolean()) {
+    settings.enabled = j["enabled"].get<bool>();
+  }
+  read_integer(j, "half_spread_bps", settings.half_spread_bps, false);
+  read_integer(j, "quote_size", settings.quote_size, false);
+}
+
 }
 
 SymbolsJsonConfig default_symbols_config() {
@@ -118,6 +146,8 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
   out.feed_seed = fallback.feed_seed;
   out.dt_years = fallback.dt_years;
   out.pump_interval_ms = fallback.pump_interval_ms;
+  out.market_maker = fallback.market_maker;
+  out.account = fallback.account;
 
   if (j.contains("feed") && j["feed"].is_object()) {
     const auto& f = j["feed"];
@@ -130,6 +160,12 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
     if (f.contains("pump_interval_ms") && f["pump_interval_ms"].is_number_integer()) {
       out.pump_interval_ms = static_cast<int>(f["pump_interval_ms"].get<std::int64_t>());
     }
+  }
+  if (j.contains("account") && j["account"].is_object()) {
+    parse_account(j["account"], out.account);
+  }
+  if (j.contains("market_maker") && j["market_maker"].is_object()) {
+    parse_market_maker(j["market_maker"], out.market_maker);
   }
   if (out.pump_interval_ms < 5) {
     out.pump_interval_ms = 5;
