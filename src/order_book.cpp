@@ -276,6 +276,14 @@ std::optional<domain::OrderId> OrderBook::front_order_id_best_bid() const {
   return lvl.front().id;
 }
 
+const domain::Order* OrderBook::find_order(const domain::OrderId id) const {
+  const auto it = impl_->index.find(id);
+  if (it == impl_->index.end()) {
+    return nullptr;
+  }
+  return &(*it->second.it);
+}
+
 std::optional<domain::Quantity> OrderBook::remaining_quantity(const domain::OrderId id) const {
   const auto it = impl_->index.find(id);
   if (it == impl_->index.end()) {

@@ -13,6 +13,8 @@ struct Trade {
   PriceCents price{0};
   Quantity quantity{0};
   SimTime time{0};
+  AccountId passive_owner{};
+  AccountId aggressive_owner{};
 };
 
 }
