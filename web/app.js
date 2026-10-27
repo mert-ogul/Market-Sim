@@ -46,7 +46,6 @@
     boardBuilt: false,
     history: new Map(),
     openBySymbol: new Map(),
-    index: null,
   };
 
   const ERROR_WORDS = {
@@ -587,10 +586,8 @@
       updateBoard(symbols);
 
       if (indexRes.status === 404) {
-        state.index = null;
         renderIndex(null);
       } else if (indexRes.ok) {
-        state.index = indexRes.body;
         renderIndex(indexRes.body);
       }
 
@@ -640,20 +637,11 @@
   }
 
   function loop(fn, delayMs) {
-    let stopped = false;
     async function step() {
-      if (stopped) {
-        return;
-      }
       await fn();
-      if (!stopped) {
-        setTimeout(step, delayMs);
-      }
+      setTimeout(step, delayMs);
     }
     setTimeout(step, 0);
-    return function stop() {
-      stopped = true;
-    };
   }
 
   function explainError(body) {
@@ -698,7 +686,7 @@
       if (!res.ok) {
         els.formResult.className = "form-result error";
         els.formResult.textContent = explainError(body);
-        setReachable(res.status !== 0);
+        setReachable(true);
         return;
       }
       setReachable(true);

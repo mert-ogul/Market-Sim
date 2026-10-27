@@ -182,7 +182,7 @@ h3 {
 }
 
 .tile.bright {
-  color: #ffffff;
+  color: var(--paper);
 }
 
 .workspace {
@@ -263,18 +263,18 @@ h3 {
 
 .segment input {
   position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  opacity: 0;
+  cursor: pointer;
 }
 
 .segment label:has(input:checked) {
   background: var(--ink);
   border-color: var(--ink);
-  color: #ffffff;
+  color: var(--paper);
 }
 
 .segment label:has(input:focus-visible) {
@@ -321,7 +321,7 @@ h3 {
   padding: 10px 12px;
   border: 0;
   border-radius: 4px;
-  color: #ffffff;
+  color: var(--paper);
   font: inherit;
   font-weight: 650;
   cursor: pointer;
@@ -345,27 +345,27 @@ h3 {
   color: var(--down);
 }
 
-.data-table {
+.market-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
 
-.data-table th,
-.data-table td {
+.market-table th,
+.market-table td {
   padding: 8px 0;
   border-bottom: 1px solid var(--rule);
   text-align: right;
   vertical-align: middle;
 }
 
-.data-table th:first-child,
-.data-table td:first-child,
-.data-table .empty {
+.market-table th:first-child,
+.market-table td:first-child,
+.market-table .empty {
   text-align: left;
 }
 
-.data-table th {
+.market-table th {
   color: var(--ink-soft);
   font-weight: 500;
 }

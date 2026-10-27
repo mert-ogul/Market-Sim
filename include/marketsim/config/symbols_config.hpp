@@ -29,7 +29,7 @@ struct SymbolsJsonConfig {
   /// Starting cash and pre-trade limits for the trader (limits of 0 are disabled).
   domain::SimulationAccount account{.cash_cents = 100'000'000};
   /// Price-weighted index over all symbols; a divisor of 0 disables it.
-  std::string index_name;
+  std::string index_name{};
   double index_divisor{0.0};
 };
 

@@ -46,8 +46,8 @@ struct OpenOrderRow {
 
 /// One line of the market overview.
 struct WatchRow {
-  std::string symbol;
-  std::string name;
+  std::string symbol{};
+  std::string name{};
   std::optional<std::int64_t> last_price_cents{};
   std::optional<std::int64_t> open_price_cents{};
   /// Trader's signed position in shares.
@@ -73,11 +73,11 @@ struct SimulatorSnapshot {
   std::vector<PositionRow> positions;
   std::vector<TradeTapeRow> trades;
   std::vector<OpenOrderRow> open_orders;
-  std::string index_name;
-  std::optional<double> index_value;
-  std::optional<double> index_open_value;
+  std::string index_name{};
+  std::optional<double> index_value{};
+  std::optional<double> index_open_value{};
   /// Every configured symbol, in config order.
-  std::vector<WatchRow> watchlist;
+  std::vector<WatchRow> watchlist{};
 };
 
 }
