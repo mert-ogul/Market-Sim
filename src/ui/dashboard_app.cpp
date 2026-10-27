@@ -107,12 +107,25 @@ int run_dashboard_loop(gateway::SimulatorService& service, const DashboardAppOpt
   std::string qty_str = "25";
   std::string px_str = "18000";
   std::string cancel_id_str;
-  std::string feedback = "Tab between controls | prices in cents | [ ] switch symbol | q quit";
+  std::string feedback =
+      "Tab between controls | prices in cents | [ ] switch symbol | o overview | q quit";
+
+  // The overview opens first whenever there is more than one symbol to choose from.
+  bool show_overview = opts.symbols.size() > 1;
+  bool show_order_row = !show_overview;
+  int selected_row = 0;
 
   bool is_buy = true;
   bool is_market = false;
   std::string side_label = "Buy";
   std::string type_label = "Limit";
+
+  const auto open_symbol = [&](const std::string& symbol) {
+    std::lock_guard lock(store.mu);
+    store.symbol = symbol;
+    store.latest.reset();
+    store.mid_history.clear();
+  };
 
   // Do not use ftxui::Toggle or Menu here: they consume Tab, so keyboard focus can never leave them (FTXUI v5.0.0).
   auto side_btn = Button(&side_label, [&] {
@@ -217,6 +230,12 @@ int run_dashboard_loop(gateway::SimulatorService& service, const DashboardAppOpt
     }
 
     DashboardRenderModel model = prepare_dashboard_render(*snap, mids);
+    if (show_overview) {
+      return vbox({
+          render_market_overview(model, selected_row) | flex,
+          hbox({text(" Up/Down select | Enter open | q quit ") | dim}) | border,
+      });
+    }
     const Element grid = render_dashboard_grid(model, tw, th);
     const Element foot = hbox({
                              text(" " + feedback + " ") | dim,
@@ -225,7 +244,7 @@ int run_dashboard_loop(gateway::SimulatorService& service, const DashboardAppOpt
     return vbox({grid | flex, foot});
   });
 
-  auto root = Container::Vertical({dashboard, order_row_ui});
+  auto root = Container::Vertical({dashboard, Maybe(order_row_ui, &show_order_row)});
 
   auto wrapped = CatchEvent(root, [&](const Event& e) {
     if (e == Event::Character('q')) {
@@ -233,21 +252,54 @@ int run_dashboard_loop(gateway::SimulatorService& service, const DashboardAppOpt
       screen.Exit();
       return true;
     }
+    if (show_overview) {
+      const int last_row =
+          opts.symbols.empty() ? 0 : static_cast<int>(opts.symbols.size()) - 1;
+      if (e == Event::ArrowDown || e == Event::Character('j')) {
+        if (selected_row < last_row) {
+          ++selected_row;
+        }
+        return true;
+      }
+      if (e == Event::ArrowUp || e == Event::Character('k')) {
+        if (selected_row > 0) {
+          --selected_row;
+        }
+        return true;
+      }
+      if (e == Event::Return) {
+        if (!opts.symbols.empty()) {
+          open_symbol(opts.symbols[static_cast<std::size_t>(selected_row)]);
+          show_overview = false;
+          show_order_row = true;
+        }
+        return true;
+      }
+      if (!e.is_mouse()) {
+        return true;
+      }
+      return false;
+    }
+    if (e == Event::Character('o') && opts.symbols.size() > 1) {
+      show_overview = true;
+      show_order_row = false;
+      return true;
+    }
     if ((e == Event::Character('[') || e == Event::Character(']')) && !opts.symbols.empty()) {
       const int delta = e == Event::Character(']') ? 1 : -1;
-      std::lock_guard lock(store.mu);
       std::size_t idx = 0;
-      for (std::size_t i = 0; i < opts.symbols.size(); ++i) {
-        if (opts.symbols[i] == store.symbol) {
-          idx = i;
-          break;
+      {
+        std::lock_guard lock(store.mu);
+        for (std::size_t i = 0; i < opts.symbols.size(); ++i) {
+          if (opts.symbols[i] == store.symbol) {
+            idx = i;
+            break;
+          }
         }
       }
       const std::size_t n = opts.symbols.size();
       idx = (idx + static_cast<std::size_t>(delta + static_cast<int>(n))) % n;
-      store.symbol = opts.symbols[idx];
-      store.latest.reset();
-      store.mid_history.clear();
+      open_symbol(opts.symbols[idx]);
       return true;
     }
     return false;

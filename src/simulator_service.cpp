@@ -411,6 +411,28 @@ view::SimulatorSnapshot SimulatorService::capture_view_snapshot(const domain::Sy
         .remaining = order.remaining,
     });
   }
+
+  snap.index_name = market_info_.index_name;
+  snap.index_value = index_value(last_prices_);
+  snap.index_open_value = index_value(open_prices_);
+  for (const domain::Symbol& symbol : tradable_symbols_) {
+    view::WatchRow row;
+    row.symbol = symbol;
+    const auto name_it = market_info_.company_names.find(symbol);
+    if (name_it != market_info_.company_names.end() && !name_it->second.empty()) {
+      row.name = name_it->second;
+    } else {
+      row.name = symbol;
+    }
+    if (const auto it = last_prices_.find(symbol); it != last_prices_.end()) {
+      row.last_price_cents = it->second;
+    }
+    if (const auto it = open_prices_.find(symbol); it != open_prices_.end()) {
+      row.open_price_cents = it->second;
+    }
+    row.position = portfolio_.position_quantity(symbol);
+    snap.watchlist.push_back(std::move(row));
+  }
   return snap;
 }
 

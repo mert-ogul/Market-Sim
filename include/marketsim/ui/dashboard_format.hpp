@@ -19,4 +19,10 @@ namespace marketsim::ui {
 /// Truncate UTF-8-unsafe but ASCII-safe symbol/label to max columns (terminal cells).
 [[nodiscard]] std::string truncate_ascii(std::string text, std::size_t max_cols);
 
+/// Index level with thousands separators and two decimals (e.g. "54,306.81").
+[[nodiscard]] std::string format_index_value(double value);
+
+/// Signed percentage for day change (e.g. "+0.48%" / "-1.20%").
+[[nodiscard]] std::string format_signed_percent(double percent);
+
 }

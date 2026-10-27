@@ -1,4 +1,5 @@
 #include "marketsim/domain/market_data.hpp"
+#include "marketsim/domain/market_info.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/gateway/simulator_service.hpp"
 #include "marketsim/matching/types.hpp"
@@ -40,6 +41,14 @@ TEST(DashboardFormat, SparklineScalesRange) {
 TEST(DashboardFormat, TruncateAscii) {
   EXPECT_EQ(marketsim::ui::truncate_ascii("AAPL", 10), "AAPL");
   EXPECT_EQ(marketsim::ui::truncate_ascii("ABCDEFGHIJK", 10), "ABCDEFG...");
+}
+
+TEST(DashboardFormat, IndexValueAndPercent) {
+  EXPECT_EQ(marketsim::ui::format_index_value(54306.814), "54,306.81");
+  EXPECT_EQ(marketsim::ui::format_index_value(999.5), "999.50");
+  EXPECT_EQ(marketsim::ui::format_index_value(-1234567.0), "-1,234,567.00");
+  EXPECT_EQ(marketsim::ui::format_signed_percent(0.4812), "+0.48%");
+  EXPECT_EQ(marketsim::ui::format_signed_percent(-1.2), "-1.20%");
 }
 
 TEST(DashboardPrepare, EmptyOrderbookAndTrades) {
@@ -121,4 +130,71 @@ TEST(DashboardPrepare, PopulatedSnapshotStrings) {
   EXPECT_EQ(m.sparkline_line.find("(no mid history yet)"), std::string::npos);
   EXPECT_EQ(m.bid_table.size(), 1u);
   EXPECT_EQ(m.ask_table.size(), 1u);
+}
+
+TEST(DashboardPrepare, IndexLineAndWatchTable) {
+  marketsim::view::SimulatorSnapshot snap;
+  snap.index_name = "Dow 30";
+  snap.index_value = 54306.81;
+  snap.index_open_value = 54047.42;
+  snap.watchlist.push_back(marketsim::view::WatchRow{
+      .symbol = "AAPL",
+      .name = "Apple",
+      .last_price_cents = 34'465,
+      .open_price_cents = 34'391,
+      .position = 10,
+  });
+  snap.watchlist.push_back(marketsim::view::WatchRow{
+      .symbol = "KO",
+      .name = "Coca-Cola",
+      .last_price_cents = 9'200,
+      .open_price_cents = 9'270,
+      .position = 0,
+  });
+  snap.watchlist.push_back(marketsim::view::WatchRow{
+      .symbol = "NKE",
+      .name = "Nike",
+  });
+
+  const auto m = marketsim::ui::prepare_dashboard_render(snap, {});
+  EXPECT_EQ(m.index_line, "Dow 30  54,306.81  +259.39 (+0.48%)");
+  EXPECT_EQ(m.index_short, "Dow 30 54,306.81 +0.48%");
+  EXPECT_EQ(m.index_direction, 1);
+  ASSERT_EQ(m.watch_table.size(), 3u);
+  ASSERT_EQ(m.watch_direction.size(), 3u);
+  EXPECT_EQ(m.watch_table[0][2], "$344.65");
+  EXPECT_EQ(m.watch_table[0][3], "+0.22%");
+  EXPECT_EQ(m.watch_table[0][4], "10");
+  EXPECT_EQ(m.watch_direction[1], -1);
+  EXPECT_TRUE(m.watch_table[1][4].empty());
+  EXPECT_EQ(m.watch_table[2][3], "—");
+}
+
+TEST(ViewSnapshot, WatchlistFollowsConfiguredSymbols) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::domain::MarketInfo info;
+  info.company_names = {{"AAPL", "Apple"}};
+  info.index_name = "Pair";
+  info.index_divisor = 1.0;
+  marketsim::gateway::SimulatorService svc(limits, 100'000'000, {"AAPL", "MSFT"},
+                                           marketsim::domain::MarketMakerSettings{}, std::move(info));
+  svc.apply_mark_from_tick(marketsim::domain::Tick{.symbol = "AAPL",
+                                                   .last_price = 18'000,
+                                                   .last_size = 1,
+                                                   .cumulative_volume = 1,
+                                                   .time = 0});
+  svc.apply_mark_from_tick(marketsim::domain::Tick{.symbol = "MSFT",
+                                                   .last_price = 42'000,
+                                                   .last_size = 1,
+                                                   .cumulative_volume = 1,
+                                                   .time = 1});
+
+  const auto snap = svc.capture_view_snapshot("AAPL", 4, 2);
+  ASSERT_EQ(snap.watchlist.size(), 2u);
+  EXPECT_EQ(snap.watchlist[0].name, "Apple");
+  EXPECT_EQ(snap.watchlist[1].name, "MSFT");
+  ASSERT_TRUE(snap.watchlist[1].open_price_cents.has_value());
+  EXPECT_EQ(*snap.watchlist[1].open_price_cents, 42'000);
+  ASSERT_TRUE(snap.index_value.has_value());
+  EXPECT_DOUBLE_EQ(*snap.index_value, 600.0);
 }

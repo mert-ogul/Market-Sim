@@ -31,6 +31,15 @@ struct DashboardRenderModel {
   bool positions_empty{true};
   bool trades_empty{true};
   bool open_orders_empty{true};
+  /// "Dow 30  54,306.81  +259.39 (+0.48%)", empty while unknown.
+  std::string index_line;
+  /// "Dow 30 54,306.81 +0.48%" for the stock view header.
+  std::string index_short;
+  /// -1 down, 0 flat or unknown, 1 up since the open.
+  int index_direction{0};
+  /// Symbol, name, last, change, position.
+  std::vector<std::array<std::string, 5>> watch_table;
+  std::vector<int> watch_direction;
 };
 
 /// Pure transformation: snapshot + optional mid history → render model (testable).

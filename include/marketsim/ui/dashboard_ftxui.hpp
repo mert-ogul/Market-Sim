@@ -10,4 +10,7 @@ namespace marketsim::ui {
 [[nodiscard]] ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, int term_width,
                                                    int term_height);
 
+/// All symbols in one table with the index on top; selected_row is highlighted and kept in view.
+[[nodiscard]] ftxui::Element render_market_overview(const DashboardRenderModel& model, int selected_row);
+
 }
