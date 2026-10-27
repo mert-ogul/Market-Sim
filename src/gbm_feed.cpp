@@ -60,7 +60,6 @@ std::optional<domain::Tick> GbmFeed::next_tick(const domain::Symbol& symbol) {
       gbm_multiplicative_factor(p.drift, p.volatility, config_.dt_years, z);
   st.price *= factor;
   const domain::PriceCents px = to_price_cents(st.price);
-  st.price = static_cast<double>(px);
 
   const domain::Quantity last_size = size_dist_(rng_);
   st.cumulative_volume += last_size;
