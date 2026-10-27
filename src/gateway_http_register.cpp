@@ -29,6 +29,12 @@ void register_http_api(httplib::Server& svr, SimulatorService& svc) {
       res.set_content(R"({"error":"invalid_symbol","message":"empty symbol"})", "application/json");
       return;
     }
+    if (!svc.is_tradable(symbol)) {
+      res.status = 404;
+      res.set_content(R"({"error":"unknown_symbol","message":"symbol is not configured"})",
+                      "application/json");
+      return;
+    }
     res.set_content(svc.orderbook_json(symbol).dump(), "application/json");
   });
 
@@ -37,6 +43,12 @@ void register_http_api(httplib::Server& svr, SimulatorService& svc) {
     if (symbol.empty()) {
       res.status = 400;
       res.set_content(R"({"error":"invalid_symbol","message":"empty symbol"})", "application/json");
+      return;
+    }
+    if (!svc.is_tradable(symbol)) {
+      res.status = 404;
+      res.set_content(R"({"error":"unknown_symbol","message":"symbol is not configured"})",
+                      "application/json");
       return;
     }
     res.set_content(svc.quote_json(symbol).dump(), "application/json");

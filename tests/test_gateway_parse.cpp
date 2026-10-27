@@ -52,6 +52,14 @@ TEST(GatewayParse, LimitMissingPrice) {
   EXPECT_EQ(r.error.code, "missing_price");
 }
 
+TEST(GatewayParse, NonPositiveLimitPriceRejected) {
+  const nlohmann::json j = {
+      {"symbol", "A"}, {"side", "sell"}, {"type", "limit"}, {"quantity", 1}, {"price_cents", 0}};
+  const auto r = parse_place_order_json(j);
+  ASSERT_FALSE(r.ok);
+  EXPECT_EQ(r.error.code, "invalid_price");
+}
+
 TEST(GatewayParse, MarketWithPriceRejected) {
   const nlohmann::json j = {
       {"symbol", "A"}, {"side", "buy"}, {"type", "market"}, {"quantity", 1}, {"price_cents", 1}};

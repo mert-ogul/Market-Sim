@@ -2,6 +2,7 @@
 
 #include "marketsim/orderbook/order_book.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <utility>
@@ -76,8 +77,17 @@ namespace {
 
 }
 
-SimulatorService::SimulatorService(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents)
-    : portfolio_(initial_cash_cents), risk_(std::move(limits), portfolio_) {}
+SimulatorService::SimulatorService(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents,
+                                   std::vector<domain::Symbol> tradable_symbols)
+    : tradable_symbols_(std::move(tradable_symbols)),
+      portfolio_(initial_cash_cents),
+      risk_(std::move(limits), portfolio_) {}
+
+bool SimulatorService::is_tradable(const domain::Symbol& symbol) const {
+  return tradable_symbols_.empty() ||
+         std::find(tradable_symbols_.begin(), tradable_symbols_.end(), symbol) !=
+             tradable_symbols_.end();
+}
 
 void SimulatorService::update_reference_from_quote(const domain::Quote& q) {
   if (q.bid_price.has_value() && q.ask_price.has_value()) {
@@ -136,6 +146,9 @@ nlohmann::json SimulatorService::quote_json(const domain::Symbol& symbol) const 
 
 std::pair<int, nlohmann::json> SimulatorService::place_order(const matching::SubmitRequest& request,
                                                                const std::optional<std::string>& client_id) {
+  if (!is_tradable(request.symbol)) {
+    return {422, make_error_json("unknown_symbol", "symbol is not configured: " + request.symbol)};
+  }
   std::lock_guard lock(mu_);
   const risk::RiskCheckResult rr = risk_.check(request);
   if (!rr.allowed) {

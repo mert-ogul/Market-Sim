@@ -196,6 +196,8 @@ TEST(MatchingEngine, RejectsInvalidRequests) {
   SubmitRequest bad_mkt = market_buy("AAPL", 1);
   bad_mkt.limit_price = PriceCents{1};
   EXPECT_EQ(engine.submit_order(bad_mkt).reject, SubmitRejectReason::InvalidLimitPrice);
+
+  EXPECT_EQ(engine.submit_order(limit_sell("AAPL", 0, 1)).reject, SubmitRejectReason::InvalidLimitPrice);
 }
 
 }
