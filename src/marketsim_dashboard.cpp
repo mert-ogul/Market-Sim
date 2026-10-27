@@ -1,7 +1,6 @@
 #include "marketsim/config/symbols_config.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/domain/types.hpp"
-#include "marketsim/gateway/demo_seed.hpp"
 #include "marketsim/runtime/simulator_runtime.hpp"
 #include "marketsim/ui/dashboard_app.hpp"
 
@@ -31,9 +30,6 @@ int main(int argc, char* argv[]) {
   constexpr marketsim::domain::PriceCents kInitialCash = 100'000'000;
   marketsim::runtime::SimulatorRuntime runtime(limits, kInitialCash, cfg);
   runtime.start();
-
-  const std::int64_t mid = marketsim::config::initial_price_hint_cents(cfg, symbol);
-  marketsim::gateway::seed_demo_liquidity(runtime.service(), symbol, mid);
 
   const int rc = marketsim::ui::run_dashboard_loop(runtime.service(),
                                                      marketsim::ui::DashboardAppOptions{.focus_symbol = symbol});

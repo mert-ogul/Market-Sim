@@ -1,7 +1,6 @@
 #include "marketsim/config/symbols_config.hpp"
 #include "marketsim/domain/market_data.hpp"
 #include "marketsim/domain/risk_config.hpp"
-#include "marketsim/gateway/demo_seed.hpp"
 #include "marketsim/gateway/register_http_api.hpp"
 #include "marketsim/gateway/simulator_service.hpp"
 #include "marketsim/matching/types.hpp"
@@ -132,7 +131,6 @@ TEST(RuntimeIntegration, RestTradeWhileFeedThreadsRunning) {
 
   const std::string sym = cfg.symbols[0].ticker;
   const std::int64_t mid = marketsim::config::initial_price_hint_cents(cfg, sym);
-  marketsim::gateway::seed_demo_liquidity(runtime.service(), sym, mid);
 
   httplib::Server svr;
   marketsim::gateway::register_http_api(svr, runtime.service());
@@ -158,6 +156,7 @@ TEST(RuntimeIntegration, RestTradeWhileFeedThreadsRunning) {
   EXPECT_EQ(res->status, 200);
   const auto j = nlohmann::json::parse(res->body);
   ASSERT_TRUE(j.at("accepted").get<bool>());
+  EXPECT_FALSE(j.at("trades").empty()) << "market maker quotes should be on the book";
 
   svr.stop();
   th.join();
