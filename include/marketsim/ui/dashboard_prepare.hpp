@@ -17,6 +17,7 @@ struct DashboardRenderModel {
   std::string equity_str;
   std::string realized_str;
   std::string unrealized_str;
+  std::string last_str;
   std::string mid_str;
   std::string spread_str;
   /// Header row + bid rows (price, qty, orders).
@@ -24,10 +25,12 @@ struct DashboardRenderModel {
   std::vector<std::array<std::string, 3>> ask_table;
   std::vector<std::array<std::string, 5>> position_table;
   std::vector<std::array<std::string, 5>> trade_table;
+  std::vector<std::array<std::string, 5>> open_order_table;
   std::string sparkline_line;
   bool orderbook_empty{true};
   bool positions_empty{true};
   bool trades_empty{true};
+  bool open_orders_empty{true};
 };
 
 /// Pure transformation: snapshot + optional mid history → render model (testable).

@@ -80,6 +80,14 @@ namespace {
   return side == domain::Side::Buy ? domain::Side::Sell : domain::Side::Buy;
 }
 
+/// Side the trader took in @p trade (the passive side is the opposite of the aggressor's).
+[[nodiscard]] domain::Side trader_side(const domain::Trade& trade) {
+  if (trade.aggressive_owner == domain::kTraderAccount) {
+    return trade.aggressive_side;
+  }
+  return opposite(trade.aggressive_side);
+}
+
 }
 
 SimulatorService::SimulatorService(domain::RiskLimits limits, const domain::PriceCents initial_cash_cents,
@@ -290,6 +298,7 @@ nlohmann::json SimulatorService::trades_json(const std::size_t max_rows) const {
     row["price_cents"] = it->second.price;
     row["quantity"] = it->second.quantity;
     row["aggressive_side"] = it->second.aggressive_side == domain::Side::Buy ? "buy" : "sell";
+    row["side"] = trader_side(it->second) == domain::Side::Buy ? "buy" : "sell";
     row["sim_time"] = it->second.time;
     arr.push_back(std::move(row));
   }
@@ -316,6 +325,9 @@ view::SimulatorSnapshot SimulatorService::capture_view_snapshot(const domain::Sy
     snap.mid_price_cents = *q.bid_price;
   } else if (q.ask_price.has_value()) {
     snap.mid_price_cents = *q.ask_price;
+  }
+  if (const auto it = last_prices_.find(symbol); it != last_prices_.end()) {
+    snap.last_price_cents = it->second;
   }
 
   for (const auto& row : engine_.orderbook_bids(symbol, depth_levels)) {
@@ -346,8 +358,17 @@ view::SimulatorSnapshot SimulatorService::capture_view_snapshot(const domain::Sy
         .symbol = it->second.symbol,
         .price_cents = it->second.price,
         .quantity = it->second.quantity,
-        .aggressive_buy = it->second.aggressive_side == domain::Side::Buy,
+        .trader_buy = trader_side(it->second) == domain::Side::Buy,
         .sim_time = it->second.time,
+    });
+  }
+  for (const domain::Order& order : engine_.open_orders(domain::kTraderAccount)) {
+    snap.open_orders.push_back(view::OpenOrderRow{
+        .order_id = order.id,
+        .symbol = order.symbol,
+        .buy = order.side == domain::Side::Buy,
+        .price_cents = order.limit_price.value_or(0),
+        .remaining = order.remaining,
     });
   }
   return snap;

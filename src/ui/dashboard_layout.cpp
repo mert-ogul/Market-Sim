@@ -62,18 +62,20 @@ using namespace ftxui;
   return window(text("Portfolio") | bold, vbox(std::move(lines)));
 }
 
-[[nodiscard]] Element trades_table(const std::vector<std::array<std::string, 5>>& rows, const int max_rows) {
+[[nodiscard]] Element order_rows_table(const char* title, const char* last_column, const char* empty_hint,
+                                       const std::vector<std::array<std::string, 5>>& rows,
+                                       const int max_rows) {
   Elements lines;
   lines.push_back(hbox({
                     text("Id") | flex,
                     text("Sym") | flex,
                     text("Side") | flex,
                     text("Px") | flex,
-                    text("Qty") | flex,
+                    text(last_column) | flex,
                 }) |
                 bold);
   if (rows.empty()) {
-    lines.push_back(text("No trades yet") | dim);
+    lines.push_back(text(empty_hint) | dim);
   } else {
     int shown = 0;
     for (const auto& r : rows) {
@@ -90,7 +92,7 @@ using namespace ftxui;
       ++shown;
     }
   }
-  return window(text("Recent trades") | bold, vbox(std::move(lines)));
+  return window(text(title) | bold, vbox(std::move(lines)));
 }
 
 }
@@ -130,7 +132,8 @@ ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, const in
   Element chart = window(
       text("Mid / sparkline") | bold,
       vbox({
-          hbox({text("Mid: ") | dim, text(model.mid_str) | bold, text("  Spread: ") | dim, text(model.spread_str)}),
+          hbox({text("Last: ") | dim, text(model.last_str) | bold, text("  Mid: ") | dim,
+                text(model.mid_str), text("  Spread: ") | dim, text(model.spread_str)}),
           separator(),
           paragraph(model.sparkline_line) | color(Color::Cyan),
       }));
@@ -149,12 +152,20 @@ ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, const in
   });
 
   const int trade_max = std::max(3, term_height / 3);
-  const Element trades = trades_table(model.trade_table, trade_max) | flex;
+  const Element bottom = hbox({
+                             order_rows_table("Recent trades", "Qty", "No trades yet", model.trade_table,
+                                              trade_max) |
+                                 flex,
+                             order_rows_table("Open orders", "Rem", "No open orders", model.open_order_table,
+                                              trade_max) |
+                                 flex,
+                         }) |
+                         flex;
 
   return vbox({
              header | border,
              mid_row | flex | border,
-             trades | flex | border,
+             bottom | flex | border,
          }) |
          flex;
 }

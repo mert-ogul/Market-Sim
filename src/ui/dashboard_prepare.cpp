@@ -42,6 +42,12 @@ DashboardRenderModel prepare_dashboard_render(const marketsim::view::SimulatorSn
   m.realized_str = format_signed_usd_cents(snap.total_realized_pnl_cents);
   m.unrealized_str = format_signed_usd_cents(snap.total_unrealized_pnl_cents);
 
+  if (snap.last_price_cents.has_value()) {
+    m.last_str = format_usd_cents(*snap.last_price_cents);
+  } else {
+    m.last_str = "—";
+  }
+
   if (snap.mid_price_cents.has_value()) {
     m.mid_str = format_usd_cents(*snap.mid_price_cents);
   } else {
@@ -87,10 +93,21 @@ DashboardRenderModel prepare_dashboard_render(const marketsim::view::SimulatorSn
     std::array<std::string, 5> line;
     line[0] = std::to_string(trow.trade_id);
     line[1] = truncate_ascii(trow.symbol, 5);
-    line[2] = trow.aggressive_buy ? "buy" : "sel";
+    line[2] = trow.trader_buy ? "buy" : "sel";
     line[3] = format_usd_cents(trow.price_cents);
     line[4] = std::to_string(trow.quantity);
     m.trade_table.push_back(std::move(line));
+  }
+
+  m.open_orders_empty = snap.open_orders.empty();
+  for (const auto& o : snap.open_orders) {
+    std::array<std::string, 5> line;
+    line[0] = std::to_string(o.order_id);
+    line[1] = truncate_ascii(o.symbol, 5);
+    line[2] = o.buy ? "buy" : "sel";
+    line[3] = format_usd_cents(o.price_cents);
+    line[4] = std::to_string(o.remaining);
+    m.open_order_table.push_back(std::move(line));
   }
 
   if (mid_history_cents.empty()) {

@@ -1,5 +1,7 @@
+#include "marketsim/domain/market_data.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/gateway/simulator_service.hpp"
+#include "marketsim/matching/types.hpp"
 #include "marketsim/ui/dashboard_format.hpp"
 #include "marketsim/ui/dashboard_prepare.hpp"
 #include "marketsim/view/simulator_snapshot.hpp"
@@ -48,6 +50,8 @@ TEST(DashboardPrepare, EmptyOrderbookAndTrades) {
   EXPECT_TRUE(m.orderbook_empty);
   EXPECT_TRUE(m.trades_empty);
   EXPECT_TRUE(m.positions_empty);
+  EXPECT_TRUE(m.open_orders_empty);
+  EXPECT_EQ(m.last_str, "—");
   EXPECT_EQ(m.mid_str, "—");
   EXPECT_EQ(m.spread_str, "n/a");
 }
@@ -58,6 +62,39 @@ TEST(ViewSnapshot, CaptureFromSimulatorService) {
   const auto snap = svc.capture_view_snapshot("AAPL", 4, 2);
   EXPECT_EQ(snap.focus_symbol, "AAPL");
   EXPECT_TRUE(snap.trades.empty());
+  EXPECT_TRUE(snap.open_orders.empty());
+  EXPECT_FALSE(snap.last_price_cents.has_value());
+}
+
+TEST(ViewSnapshot, IncludesLastPriceAndOpenOrders) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::gateway::SimulatorService svc(limits, 100'000'000, {"AAPL", "MSFT"});
+  svc.apply_mark_from_tick(marketsim::domain::Tick{.symbol = "AAPL",
+                                                   .last_price = 18'000,
+                                                   .last_size = 1,
+                                                   .cumulative_volume = 1,
+                                                   .time = 0});
+  const marketsim::matching::SubmitRequest buy{.symbol = "MSFT",
+                                               .side = marketsim::domain::Side::Buy,
+                                               .type = marketsim::domain::OrderType::Limit,
+                                               .limit_price = 40'000,
+                                               .quantity = 3};
+  ASSERT_EQ(svc.place_order(buy, std::nullopt).first, 200);
+
+  const auto snap = svc.capture_view_snapshot("AAPL", 4, 2);
+  ASSERT_TRUE(snap.last_price_cents.has_value());
+  EXPECT_EQ(*snap.last_price_cents, 18'000);
+  ASSERT_EQ(snap.open_orders.size(), 1u);
+  EXPECT_EQ(snap.open_orders[0].symbol, "MSFT");
+  EXPECT_TRUE(snap.open_orders[0].buy);
+  EXPECT_EQ(snap.open_orders[0].remaining, 3);
+
+  const auto m = marketsim::ui::prepare_dashboard_render(snap, {});
+  EXPECT_EQ(m.last_str, "$180.00");
+  EXPECT_FALSE(m.open_orders_empty);
+  ASSERT_EQ(m.open_order_table.size(), 1u);
+  EXPECT_EQ(m.open_order_table[0][2], "buy");
+  EXPECT_EQ(m.open_order_table[0][3], "$400.00");
 }
 
 TEST(DashboardPrepare, PopulatedSnapshotStrings) {
