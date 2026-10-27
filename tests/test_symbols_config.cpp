@@ -47,6 +47,34 @@ TEST(SymbolsConfig, UnknownTickerWithoutInitialPriceIsSkipped) {
   EXPECT_EQ(c.symbols[1].gbm.initial_price_cents, 2500);
 }
 
+TEST(SymbolsConfig, NamesCorrelationAndIndex) {
+  const std::filesystem::path path =
+      std::filesystem::temp_directory_path() / "marketsim_sym_names_index_test.json";
+  {
+    std::ofstream out(path);
+    out << R"({
+      "index": {"name": "Dow 30", "divisor": 0.163},
+      "symbols": [
+        {"symbol": "KO", "name": "Coca-Cola Co", "initial_price_cents": 9270,
+         "drift": 0.07, "volatility": 0.15, "market_correlation": 0.4},
+        {"symbol": "NVDA", "initial_price_cents": 21600,
+         "drift": 0.07, "volatility": 0.5, "market_correlation": 1.5}
+      ]
+    })";
+  }
+  const auto c = marketsim::config::load_symbols_config_or_defaults(path);
+  std::filesystem::remove(path);
+  ASSERT_EQ(c.symbols.size(), 2u);
+  EXPECT_EQ(c.symbols[0].ticker, "KO");
+  EXPECT_EQ(c.symbols[0].name, "Coca-Cola Co");
+  EXPECT_DOUBLE_EQ(c.symbols[0].gbm.market_correlation, 0.4);
+  EXPECT_EQ(c.symbols[1].ticker, "NVDA");
+  EXPECT_TRUE(c.symbols[1].name.empty());
+  EXPECT_DOUBLE_EQ(c.symbols[1].gbm.market_correlation, 1.0);
+  EXPECT_EQ(c.index_name, "Dow 30");
+  EXPECT_DOUBLE_EQ(c.index_divisor, 0.163);
+}
+
 TEST(SymbolsConfig, AccountAndMarketMakerSections) {
   const std::filesystem::path path =
       std::filesystem::temp_directory_path() / "marketsim_sym_account_mm_test.json";

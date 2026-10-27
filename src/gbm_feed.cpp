@@ -18,10 +18,13 @@ namespace {
   return std::max<domain::PriceCents>(1, cents);
 }
 
+/// Offset so the market stream differs from the per-symbol stream for the same seed.
+constexpr std::uint64_t kMarketSeedOffset = 0x9E3779B97F4A7C15ULL;
+
 }
 
 GbmFeed::GbmFeed(GbmFeedConfig config)
-    : config_(config), rng_(config.seed) {}
+    : config_(config), rng_(config.seed), market_rng_(config.seed ^ kMarketSeedOffset) {}
 
 void GbmFeed::register_symbol(domain::Symbol symbol, GbmSymbolParams params) {
   params_[std::move(symbol)] = params;
@@ -55,7 +58,9 @@ std::optional<domain::Tick> GbmFeed::next_tick(const domain::Symbol& symbol) {
   SymbolState& st = sit->second;
   const GbmSymbolParams& p = pit->second;
 
-  const double z = normal_(rng_);
+  // Mixing keeps each symbol's volatility unchanged while correlating it with the market.
+  const double rho = std::clamp(p.market_correlation, 0.0, 1.0);
+  const double z = rho * market_shock_ + std::sqrt(1.0 - rho * rho) * normal_(rng_);
   const double factor =
       gbm_multiplicative_factor(p.drift, p.volatility, config_.dt_years, z);
   st.price *= factor;
@@ -75,8 +80,13 @@ std::optional<domain::Tick> GbmFeed::next_tick(const domain::Symbol& symbol) {
   return tick;
 }
 
+void GbmFeed::begin_round() {
+  market_shock_ = market_normal_(market_rng_);
+}
+
 void GbmFeed::reseed(const std::uint64_t seed) {
   rng_.seed(seed);
+  market_rng_.seed(seed ^ kMarketSeedOffset);
 }
 
 std::vector<std::pair<domain::Symbol, GbmSymbolParams>> default_symbol_table() {

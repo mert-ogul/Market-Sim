@@ -6,6 +6,7 @@
 #include "marketsim/feed/gbm_feed.hpp"
 
 #include <filesystem>
+#include <string>
 #include <vector>
 
 namespace marketsim::config {
@@ -14,6 +15,8 @@ namespace marketsim::config {
 struct SymbolSpec {
   domain::Symbol ticker;
   feed::GbmSymbolParams gbm{};
+  /// Company name for display; empty when the config gives none.
+  std::string name{};
 };
 
 /// Feed, symbol list, trader account and market maker settings.
@@ -25,6 +28,9 @@ struct SymbolsJsonConfig {
   domain::MarketMakerSettings market_maker{.enabled = true};
   /// Starting cash and pre-trade limits for the trader (limits of 0 are disabled).
   domain::SimulationAccount account{.cash_cents = 100'000'000};
+  /// Price-weighted index over all symbols; a divisor of 0 disables it.
+  std::string index_name{};
+  double index_divisor{0.0};
 };
 
 /// Built-in defaults: same symbols as `GbmFeed::register_default_symbols()` with table params.

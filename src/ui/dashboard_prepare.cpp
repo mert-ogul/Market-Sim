@@ -6,6 +6,7 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace marketsim::ui {
 
@@ -15,6 +16,16 @@ namespace {
   std::ostringstream os;
   os << "sim t=" << t;
   return std::move(os).str();
+}
+
+[[nodiscard]] int direction_of(const double delta) {
+  if (delta > 0.0) {
+    return 1;
+  }
+  if (delta < 0.0) {
+    return -1;
+  }
+  return 0;
 }
 
 }
@@ -115,6 +126,51 @@ DashboardRenderModel prepare_dashboard_render(const marketsim::view::SimulatorSn
   } else {
     m.sparkline_line = build_sparkline_ascii(mid_history_cents, 48);
   }
+
+  if (snap.index_value.has_value() && snap.index_open_value.has_value() &&
+      *snap.index_open_value != 0.0) {
+    const double delta = *snap.index_value - *snap.index_open_value;
+    const double pct = delta / *snap.index_open_value * 100.0;
+    m.index_direction = direction_of(delta);
+    std::string points = format_index_value(delta);
+    if (delta > 0.0) {
+      points.insert(points.begin(), '+');
+    }
+    m.index_line = snap.index_name + "  " + format_index_value(*snap.index_value) + "  " + points +
+                   " (" + format_signed_percent(pct) + ")";
+    m.index_short = snap.index_name + " " + format_index_value(*snap.index_value) + " " +
+                    format_signed_percent(pct);
+  }
+
+  for (const auto& row : snap.watchlist) {
+    std::array<std::string, 5> line;
+    line[0] = row.symbol;
+    line[1] = row.name;
+    if (row.last_price_cents.has_value()) {
+      line[2] = format_usd_cents(*row.last_price_cents);
+    } else {
+      line[2] = "—";
+    }
+    int direction = 0;
+    if (row.last_price_cents.has_value() && row.open_price_cents.has_value() &&
+        *row.open_price_cents != 0) {
+      const double delta =
+          static_cast<double>(*row.last_price_cents - *row.open_price_cents);
+      const double pct = delta / static_cast<double>(*row.open_price_cents) * 100.0;
+      line[3] = format_signed_percent(pct);
+      direction = direction_of(delta);
+    } else {
+      line[3] = "—";
+    }
+    if (row.position != 0) {
+      line[4] = std::to_string(row.position);
+    } else {
+      line[4] = "";
+    }
+    m.watch_table.push_back(std::move(line));
+    m.watch_direction.push_back(direction);
+  }
+
   return m;
 }
 

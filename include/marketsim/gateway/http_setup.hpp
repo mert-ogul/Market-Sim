@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <iostream>
+#include <string>
 #include <thread>
 
 namespace marketsim::gateway {
@@ -25,6 +27,17 @@ inline void install_json_not_found_handler(httplib::Server& server) {
     j["message"] = "no route";
     res.set_content(j.dump(), "application/json");
   });
+}
+
+/// Serves the browser UI from @p dir at "/". Prints a hint and returns false when the folder is
+/// missing, which usually means the binary was started outside the repository root.
+inline bool mount_web_ui(httplib::Server& server, const std::string& dir = "web") {
+  if (server.set_mount_point("/", dir)) {
+    return true;
+  }
+  std::cerr << "web UI not served: folder '" << dir
+            << "' not found (run from the repository root)\n";
+  return false;
 }
 
 /// Poll until `is_running()` or timeout. Returns whether the server thread started listening.

@@ -12,6 +12,16 @@ namespace {
 
 using namespace ftxui;
 
+[[nodiscard]] Color direction_color(const int direction) {
+  if (direction > 0) {
+    return Color::GreenLight;
+  }
+  if (direction < 0) {
+    return Color::RedLight;
+  }
+  return Color::Default;
+}
+
 [[nodiscard]] Element depth_table(const char* title, const std::vector<std::array<std::string, 3>>& rows,
                                   const bool is_bid_side, const bool empty_hint) {
   Elements lines;
@@ -103,6 +113,11 @@ ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, const in
 
   const bool cramped = term_width < 80 || term_height < 24;
 
+  Element header_time = text(model.sim_time_str) | dim;
+  if (!model.index_short.empty()) {
+    header_time = text(model.index_short) | color(direction_color(model.index_direction));
+  }
+
   Element header = hbox({
       text(" marketsim ") | bold | color(Color::CyanLight),
       text(" | ") | dim,
@@ -110,7 +125,7 @@ ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, const in
       text(" | ") | dim,
       text(model.clock_hhmmss) | color(Color::GrayLight),
       text(" | ") | dim,
-      text(model.sim_time_str) | dim,
+      std::move(header_time),
       filler(),
       text("Eq ") | dim,
       text(model.equity_str) | bold,
@@ -166,6 +181,61 @@ ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, const in
              header | border,
              mid_row | flex | border,
              bottom | flex | border,
+         }) |
+         flex;
+}
+
+ftxui::Element render_market_overview(const DashboardRenderModel& model, const int selected_row) {
+  using namespace ftxui;
+
+  Element header = hbox({
+                       text(" marketsim ") | bold | color(Color::CyanLight),
+                       text(" | ") | dim,
+                       text(model.index_line) | bold | color(direction_color(model.index_direction)),
+                       filler(),
+                       text("Eq ") | dim,
+                       text(model.equity_str) | bold,
+                       text("  P&L r:") | dim,
+                       text(model.realized_str) | color(Color::GreenLight),
+                       text(" u:") | dim,
+                       text(model.unrealized_str) | color(Color::YellowLight),
+                   }) |
+                   border;
+
+  Elements rows;
+  rows.push_back(hbox({
+                      text("Symbol") | size(WIDTH, EQUAL, 8) | bold,
+                      text("Company") | flex | bold,
+                      text("Last") | size(WIDTH, EQUAL, 12) | align_right | bold,
+                      text("Change") | size(WIDTH, EQUAL, 10) | align_right | bold,
+                      text("Position") | size(WIDTH, EQUAL, 10) | align_right | bold,
+                  }) |
+                  bold);
+  rows.push_back(separator());
+
+  for (std::size_t i = 0; i < model.watch_table.size(); ++i) {
+    const auto& r = model.watch_table[i];
+    const int direction =
+        i < model.watch_direction.size() ? model.watch_direction[i] : 0;
+    Element row = hbox({
+        text(r[0]) | size(WIDTH, EQUAL, 8) | bold,
+        text(r[1]) | flex,
+        text(r[2]) | size(WIDTH, EQUAL, 12) | align_right,
+        text(r[3]) | size(WIDTH, EQUAL, 10) | align_right | color(direction_color(direction)),
+        text(r[4]) | size(WIDTH, EQUAL, 10) | align_right,
+    });
+    if (static_cast<int>(i) == selected_row) {
+      row = std::move(row) | inverted | focus;
+    }
+    rows.push_back(std::move(row));
+  }
+
+  Element table =
+      vbox(std::move(rows)) | vscroll_indicator | frame | flex | border;
+
+  return vbox({
+             std::move(header),
+             std::move(table),
          }) |
          flex;
 }
