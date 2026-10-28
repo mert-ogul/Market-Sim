@@ -77,6 +77,7 @@ marketsim_apply_warnings(marketsim_core PUBLIC)
 add_library(marketsim_runtime STATIC
   src/symbols_config.cpp
   src/simulator_runtime.cpp
+  src/trading_bots.cpp
 )
 add_library(marketsim::runtime ALIAS marketsim_runtime)
 target_include_directories(marketsim_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
