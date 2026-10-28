@@ -30,6 +30,8 @@ Run the server from the repository root so it finds `config/` and `web/`. The fi
 
 **An example trading bot.** Put a small script under `examples/` that places orders against a running server. Use only the Python standard library (no third-party packages).
 
+**A new kind of simulated trader.** The built-in bots in `src/trading_bots.cpp` fire random, trend and mean-reversion clips. Add another rule (and an account id in `domain/types.hpp`), keep the chances and sizes in the same style, and cover it in `tests/test_trading_bots.cpp`.
+
 **Thousands separators in the terminal dashboard.** `format_usd_cents` currently prints values like `$1000000.00`. Teach it to insert grouping commas so large cash and equity figures are easier to read in the TUI.
 
 **Unused event types.** `eventbus/events.hpp` declares `OrderNew`, `OrderCancel`, `Trade`, `Quote` and `PortfolioUpdate` alongside `Tick`, but the ring mostly carries ticks. Either publish the others from the engine/service or remove the ones that will stay unused.

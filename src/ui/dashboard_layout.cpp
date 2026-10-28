@@ -38,7 +38,7 @@ using namespace ftxui;
       const Color px_color = is_bid_side ? Color::GreenLight : Color::RedLight;
       lines.push_back(hbox({
           text(r[0]) | flex | color(px_color),
-          text(r[1]) | flex,
+          text(" " + r[1]) | flex,
           text(r[2]) | flex,
       }));
     }
