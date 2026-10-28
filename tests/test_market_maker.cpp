@@ -146,6 +146,11 @@ TEST(MarketMaker, HouseOrdersFillTheTapeButNotYourTrades) {
   svc.submit_house_order(sell);
   EXPECT_EQ(svc.tape_json("AAPL").at("trades").size(), 1u);
   EXPECT_EQ(svc.symbols_json().at("symbols")[0].at("volume").get<std::int64_t>(), 25);
+
+  svc.apply_clock(
+      marketsim::domain::MarketClockState{.day = 2, .minute_of_day = 570, .open = true});
+  EXPECT_TRUE(svc.tape_json("AAPL").at("trades").empty());
+  EXPECT_EQ(svc.symbols_json().at("symbols")[0].at("volume").get<std::int64_t>(), 0);
 }
 
 TEST(MarketMaker, TraderMarketBuyFillsAgainstAsk) {

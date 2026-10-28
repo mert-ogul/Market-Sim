@@ -565,7 +565,7 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const labelW = 64;
+    const labelW = 80;
     const padL = 8;
     const padR = 8;
     const padT = 12;

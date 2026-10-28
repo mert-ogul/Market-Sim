@@ -628,6 +628,8 @@ void SimulatorService::apply_clock(const domain::MarketClockState& clock) {
     previous_close_ = last_prices_;
     open_prices_.clear();
     day_volume_.clear();
+    // Tape rows only carry minute-of-day, so yesterday's prints would look like today's.
+    tape_.clear();
   }
   clock_ = clock;
 }

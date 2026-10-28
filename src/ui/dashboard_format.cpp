@@ -13,11 +13,24 @@ namespace {
   const std::int64_t abs_c = cents >= 0 ? cents : -cents;
   const std::int64_t dollars = abs_c / 100;
   const std::int64_t frac = abs_c % 100;
+
+  // Group the dollar digits the same way as index levels so large cash/equity stay readable.
+  const std::string digits = std::to_string(dollars);
+  std::string with_commas;
+  with_commas.reserve(digits.size() + digits.size() / 3);
+  const int n = static_cast<int>(digits.size());
+  for (int i = 0; i < n; ++i) {
+    if (i > 0 && (n - i) % 3 == 0) {
+      with_commas.push_back(',');
+    }
+    with_commas.push_back(digits[static_cast<std::size_t>(i)]);
+  }
+
   std::ostringstream os;
   if (negative) {
     os << '-';
   }
-  os << '$' << dollars << '.' << std::setw(2) << std::setfill('0') << frac;
+  os << '$' << with_commas << '.' << std::setw(2) << std::setfill('0') << frac;
   return std::move(os).str();
 }
 

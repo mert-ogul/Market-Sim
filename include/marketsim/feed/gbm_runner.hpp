@@ -40,7 +40,7 @@ template <std::size_t Capacity>
       ++n;
     }
   }
-  // Headlines still publish overnight so the tape catches up when the session opens.
+  // Headlines still publish overnight so the news endpoint stays live while trading is closed.
   for (domain::News& headline : feed.take_news()) {
     (void)ring.try_push(eventbus::Event{std::move(headline)});
   }
