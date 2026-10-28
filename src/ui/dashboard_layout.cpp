@@ -119,7 +119,7 @@ ftxui::Element render_dashboard_grid(const DashboardRenderModel& model, const in
   }
 
   Element header = hbox({
-      text(" marketsim ") | bold | color(Color::CyanLight),
+      text(" roundlot ") | bold | color(Color::CyanLight),
       text(" | ") | dim,
       text(model.symbol_line) | bold,
       text(" | ") | dim,
@@ -189,7 +189,7 @@ ftxui::Element render_market_overview(const DashboardRenderModel& model, const i
   using namespace ftxui;
 
   Element header = hbox({
-                       text(" marketsim ") | bold | color(Color::CyanLight),
+                       text(" roundlot ") | bold | color(Color::CyanLight),
                        text(" | ") | dim,
                        text(model.index_line) | bold | color(direction_color(model.index_direction)),
                        filler(),

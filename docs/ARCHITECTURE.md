@@ -4,7 +4,7 @@ This is a map of the code for people who want to change it: where things live an
 
 ## The short version
 
-Market Sim is one process. A price feed makes up prices, a market maker quotes around them, and orders from you and from simulated traders meet in a limit order book. Everything you see in the browser, the terminal or over HTTP is read from one object, `SimulatorService`, behind one mutex.
+Roundlot is one process. A price feed makes up prices, a market maker quotes around them, and orders from you and from simulated traders meet in a limit order book. Everything you see in the browser, the terminal or over HTTP is read from one object, `SimulatorService`, behind one mutex.
 
 ```mermaid
 %%{init: {'theme': 'neutral'}}%%

@@ -316,7 +316,7 @@
       return;
     }
     els.indexValue.textContent = indexFmt.format(index.value);
-    document.title = indexFmt.format(index.value) + " " + (index.name || "") + " | Market Sim";
+    document.title = indexFmt.format(index.value) + " " + (index.name || "") + " | Roundlot";
 
     const ref =
       index.previous_close != null ? index.previous_close : index.open_value;

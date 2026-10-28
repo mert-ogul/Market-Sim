@@ -1,10 +1,16 @@
-# Market Sim
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/roundlot-logo-white.svg">
+    <img src="docs/brand/roundlot-logo.svg" alt="Roundlot" height="44">
+  </picture>
+</h1>
 
-[![CI](https://github.com/mert-ogul/Market-Sim/actions/workflows/ci.yml/badge.svg)](https://github.com/mert-ogul/Market-Sim/actions/workflows/ci.yml)
+[![CI](https://github.com/mert-ogul/roundlot/actions/workflows/ci.yml/badge.svg)](https://github.com/mert-ogul/roundlot/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-14213d)](LICENSE)
 
 A practice stock exchange for the 30 Dow stocks that runs on your own computer.
 
-![Market Sim in the browser: prices move on the Dow 30 board, a stock is opened after a news jump, and a 2,500 share market buy fills across several price levels](docs/demo.gif)
+![Roundlot in the browser: prices move on the Dow 30 board, a stock is opened after a news jump, and a 2,500 share market buy fills across several price levels](docs/demo.gif)
 
 You start with $1,000,000 of play money and trade from the browser, a terminal dashboard, or your own code through a REST API. Nothing here is real money or real market data.
 
@@ -19,8 +25,8 @@ You start with $1,000,000 of play money and trade from the browser, a terminal d
 With Docker:
 
 ```bash
-docker build -t market-sim .
-docker run --rm -p 8080:8080 market-sim
+docker build -t roundlot .
+docker run --rm -p 8080:8080 roundlot
 ```
 
 Then open http://localhost:8080.
@@ -121,3 +127,7 @@ Debug builds treat warnings as errors and turn on AddressSanitizer and UBSan; `-
 ## Contributing
 
 Bug reports and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to build, what a good pull request looks like, and lists a few good first issues.
+
+## License
+
+[MIT](LICENSE). The logo files in [docs/brand](docs/brand) are under the same license.

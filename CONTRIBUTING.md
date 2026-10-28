@@ -1,6 +1,6 @@
-# Contributing
+# Contributing to Roundlot
 
-Market Sim is small on purpose, so most changes touch only a few files. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) shows where things live.
+Roundlot is small on purpose, so most changes touch only a few files. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) shows where things live.
 
 ## Getting set up
 

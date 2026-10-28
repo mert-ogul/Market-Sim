@@ -60,10 +60,12 @@ h3 {
   padding: 20px var(--gap) 16px;
 }
 
+/* The logo's bottom edge is the text baseline, so it lines up with the index beside it. */
 .brand {
-  font-size: 15px;
-  font-weight: 700;
-  font-stretch: 87.5%;
+  display: block;
+  height: 20px;
+  width: auto;
+  color: var(--ink);
 }
 
 .index {
