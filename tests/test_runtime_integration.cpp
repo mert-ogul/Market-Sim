@@ -120,6 +120,121 @@ TEST(RuntimeIntegration, StartStopIdempotent) {
   runtime.stop();
 }
 
+TEST(RuntimeIntegration, EveryStartGetsANewSeedUnlessOneIsConfigured) {
+  auto cfg = marketsim::config::default_symbols_config();
+  cfg.symbols.resize(1);
+  ASSERT_FALSE(cfg.feed_seed.has_value());
+
+  marketsim::domain::RiskLimits limits{};
+  marketsim::runtime::SimulatorRuntime first(limits, 1'000'000, cfg);
+  marketsim::runtime::SimulatorRuntime second(limits, 1'000'000, cfg);
+  EXPECT_NE(first.seed(), second.seed());
+
+  cfg.feed_seed = 99;
+  marketsim::runtime::SimulatorRuntime fixed(limits, 1'000'000, cfg);
+  EXPECT_EQ(fixed.seed(), 99u);
+}
+
+TEST(RuntimeIntegration, ClosedMarketRejectsOrdersButAllowsCancels) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::gateway::SimulatorService svc(limits, 1'000'000);
+
+  const marketsim::matching::SubmitRequest buy{.symbol = "AAPL",
+                                               .side = marketsim::domain::Side::Buy,
+                                               .type = marketsim::domain::OrderType::Limit,
+                                               .limit_price = 1'000,
+                                               .quantity = 10};
+  const auto placed = svc.place_order(buy, std::nullopt);
+  ASSERT_EQ(placed.first, 200);
+  const auto order_id = placed.second.at("order_id").get<marketsim::domain::OrderId>();
+
+  svc.apply_clock(marketsim::domain::MarketClockState{.day = 1, .minute_of_day = 960, .open = false});
+
+  const auto rejected = svc.place_order(buy, std::nullopt);
+  EXPECT_EQ(rejected.first, 422);
+  EXPECT_EQ(rejected.second.at("error").get<std::string>(), "market_closed");
+  EXPECT_EQ(rejected.second.at("message").get<std::string>(),
+            "the market is closed; it opens again at 9:30 AM");
+
+  const auto cancelled = svc.cancel_order(order_id);
+  EXPECT_EQ(cancelled.first, 200);
+  EXPECT_TRUE(cancelled.second.at("cancelled").get<bool>());
+}
+
+TEST(RuntimeIntegration, NewDayKeepsThePreviousCloseAndStartsANewOpen) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::domain::MarketInfo info;
+  info.index_name = "Test Index";
+  info.index_divisor = 1.0;
+  marketsim::gateway::SimulatorService svc(limits, 1'000'000, {"AAPL"},
+                                           marketsim::domain::MarketMakerSettings{.enabled = true},
+                                           info);
+
+  const marketsim::domain::Tick tick{.symbol = "AAPL",
+                                     .last_price = 10'000,
+                                     .last_size = 1,
+                                     .cumulative_volume = 1,
+                                     .time = 0};
+  svc.apply_mark_from_tick(tick);
+
+  const auto quote_open = svc.quote_json("AAPL");
+  EXPECT_FALSE(quote_open.at("bid_price_cents").is_null());
+  EXPECT_FALSE(quote_open.at("ask_price_cents").is_null());
+
+  svc.apply_clock(marketsim::domain::MarketClockState{.day = 1, .minute_of_day = 960, .open = false});
+  const auto quote_closed = svc.quote_json("AAPL");
+  EXPECT_TRUE(quote_closed.at("bid_price_cents").is_null());
+  EXPECT_TRUE(quote_closed.at("ask_price_cents").is_null());
+
+  svc.apply_clock(marketsim::domain::MarketClockState{.day = 2, .minute_of_day = 570, .open = true});
+  const auto symbols = svc.symbols_json();
+  ASSERT_EQ(symbols.at("symbols").size(), 1u);
+  EXPECT_EQ(symbols.at("symbols")[0].at("previous_close_cents").get<std::int64_t>(), 10'000);
+  EXPECT_TRUE(symbols.at("symbols")[0].at("open_price_cents").is_null());
+
+  const auto index = svc.index_json();
+  ASSERT_TRUE(index.at("previous_close").is_number());
+  EXPECT_DOUBLE_EQ(index.at("previous_close").get<double>(), 100.0);
+  EXPECT_TRUE(index.at("open_value").is_null());
+
+  const marketsim::domain::Tick next_open{.symbol = "AAPL",
+                                          .last_price = 11'000,
+                                          .last_size = 1,
+                                          .cumulative_volume = 2,
+                                          .time = 1};
+  svc.apply_mark_from_tick(next_open);
+  const auto after_open = svc.symbols_json();
+  EXPECT_EQ(after_open.at("symbols")[0].at("open_price_cents").get<std::int64_t>(), 11'000);
+  EXPECT_EQ(after_open.at("symbols")[0].at("previous_close_cents").get<std::int64_t>(), 10'000);
+}
+
+TEST(RuntimeIntegration, HeadlinesAreStampedAndNewestFirst) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::domain::MarketInfo info;
+  info.index_name = "Dow 30";
+  info.company_names.emplace("AAPL", "Apple");
+  marketsim::gateway::SimulatorService svc(limits, 1'000'000, {"AAPL"},
+                                           marketsim::domain::MarketMakerSettings{.enabled = false},
+                                           info);
+
+  svc.apply_clock(marketsim::domain::MarketClockState{.day = 1, .minute_of_day = 600, .open = true});
+  svc.record_news(marketsim::domain::News{.symbol = "AAPL", .move = -0.12345});
+  svc.apply_clock(marketsim::domain::MarketClockState{.day = 1, .minute_of_day = 601, .open = true});
+  svc.record_news(marketsim::domain::News{.symbol = {}, .move = 0.03});
+
+  const auto j = svc.news_json();
+  ASSERT_EQ(j.at("news").size(), 2u);
+  EXPECT_TRUE(j.at("news")[0].at("symbol").is_null());
+  EXPECT_EQ(j.at("news")[0].at("name").get<std::string>(), "Dow 30");
+  EXPECT_EQ(j.at("news")[0].at("day").get<int>(), 1);
+  EXPECT_EQ(j.at("news")[0].at("minute_of_day").get<int>(), 601);
+  EXPECT_DOUBLE_EQ(j.at("news")[0].at("move").get<double>(), 0.03);
+  EXPECT_EQ(j.at("news")[1].at("symbol").get<std::string>(), "AAPL");
+  EXPECT_EQ(j.at("news")[1].at("name").get<std::string>(), "Apple");
+  EXPECT_EQ(j.at("news")[1].at("minute_of_day").get<int>(), 600);
+  EXPECT_DOUBLE_EQ(j.at("news")[1].at("move").get<double>(), -0.1235);
+}
+
 TEST(RuntimeIntegration, RestTradeWhileFeedThreadsRunning) {
   auto cfg = marketsim::config::default_symbols_config();
   cfg.symbols.resize(1);

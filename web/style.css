@@ -127,6 +127,13 @@ h3 {
   font-weight: 600;
 }
 
+.market-clock {
+  margin: 0;
+  padding: 0 var(--gap);
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
 .status-line {
   margin: 0 var(--gap) 12px;
   padding: 10px 12px;
@@ -176,6 +183,11 @@ h3 {
   font-weight: 600;
 }
 
+/* Strong tile fills wash out .up/.down; inherit the tile ink instead. */
+.tile .tile-change {
+  color: inherit;
+}
+
 .tile-price {
   font-size: 13px;
   opacity: 0.8;
@@ -210,9 +222,16 @@ h3 {
 .focus-price {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 10px;
   font-size: 22px;
   font-weight: 600;
+}
+
+.focus-volume {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-soft);
 }
 
 #chart {
@@ -221,9 +240,26 @@ h3 {
   height: 260px;
 }
 
-.orderbook-wrap {
-  max-width: 420px;
+.market-detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
   margin-top: 20px;
+}
+
+.news {
+  margin-top: 28px;
+}
+
+.news-table th:first-child,
+.news-table td:first-child {
+  white-space: nowrap;
+  padding-right: 16px;
+}
+
+.news-table th:nth-child(2),
+.news-table td:nth-child(2) {
+  text-align: left;
 }
 
 .side {
@@ -335,6 +371,12 @@ h3 {
   background: var(--down);
 }
 
+.submit:disabled {
+  background: var(--rule);
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
 .form-result {
   min-height: 1.45em;
   margin: 10px 0 0;
@@ -411,7 +453,7 @@ h3 {
   }
 
   .workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -426,6 +468,10 @@ h3 {
 
   .board-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .market-detail {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .account-summary {

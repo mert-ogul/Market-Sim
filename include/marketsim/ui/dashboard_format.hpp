@@ -7,7 +7,7 @@
 
 namespace marketsim::ui {
 
-/// Fixed-point dollars from integer cents (e.g. 12345 -> "$123.45").
+/// Fixed-point dollars from integer cents with thousands separators (e.g. 123456789 -> "$1,234,567.89").
 [[nodiscard]] std::string format_usd_cents(std::int64_t cents);
 
 /// Signed currency for P&L lines (uses parentheses for negatives).

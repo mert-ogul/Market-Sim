@@ -28,8 +28,31 @@ TEST(SymbolsConfig, LoadValidFileOverridesSymbols) {
   ASSERT_EQ(c.symbols.size(), 1u);
   EXPECT_EQ(c.symbols[0].ticker, "ZZZ");
   EXPECT_EQ(c.symbols[0].gbm.initial_price_cents, 5000);
-  EXPECT_EQ(c.feed_seed, 3u);
+  ASSERT_TRUE(c.feed_seed.has_value());
+  EXPECT_EQ(*c.feed_seed, 3u);
   EXPECT_EQ(c.pump_interval_ms, 10);
+}
+
+TEST(SymbolsConfig, SeedIsOptionalAndClockIsRead) {
+  const std::filesystem::path path =
+      std::filesystem::temp_directory_path() / "marketsim_sym_seed_clock_test.json";
+  {
+    std::ofstream out(path);
+    out << R"({"symbols":["AAPL"],"feed":{"pump_interval_ms":20},"clock":{"closed_seconds":0},"news":{"company_news_per_day":0.2,"market_shocks_per_day":-1.5}})";
+  }
+  const auto c = marketsim::config::load_symbols_config_or_defaults(path);
+  std::filesystem::remove(path);
+  EXPECT_FALSE(c.feed_seed.has_value());
+  EXPECT_EQ(c.closed_seconds, 0);
+  EXPECT_EQ(c.pump_interval_ms, 20);
+  EXPECT_DOUBLE_EQ(c.company_news_per_day, 0.2);
+  EXPECT_DOUBLE_EQ(c.market_shocks_per_day, 0.0);
+
+  const auto defaults = marketsim::config::default_symbols_config();
+  EXPECT_FALSE(defaults.feed_seed.has_value());
+  EXPECT_EQ(defaults.closed_seconds, 30);
+  EXPECT_DOUBLE_EQ(defaults.company_news_per_day, 0.0);
+  EXPECT_DOUBLE_EQ(defaults.market_shocks_per_day, 0.0);
 }
 
 TEST(SymbolsConfig, UnknownTickerWithoutInitialPriceIsSkipped) {
@@ -88,7 +111,8 @@ TEST(SymbolsConfig, AccountAndMarketMakerSections) {
         "max_position_per_symbol":2000,
         "price_collar_cents":-5
       },
-      "market_maker":{"enabled":false,"half_spread_bps":12,"quote_size":250}
+      "market_maker":{"enabled":false,"half_spread_bps":12,"quote_size":250,"levels":4,"impact_bps_per_1000_shares":7.5},
+      "bots":{"enabled":true,"activity":2.5}
     })";
   }
   const auto c = marketsim::config::load_symbols_config_or_defaults(path);
@@ -100,6 +124,10 @@ TEST(SymbolsConfig, AccountAndMarketMakerSections) {
   EXPECT_FALSE(c.market_maker.enabled);
   EXPECT_EQ(c.market_maker.half_spread_bps, 12);
   EXPECT_EQ(c.market_maker.quote_size, 250);
+  EXPECT_EQ(c.market_maker.levels, 4);
+  EXPECT_DOUBLE_EQ(c.market_maker.impact_bps_per_1000_shares, 7.5);
+  EXPECT_TRUE(c.bots.enabled);
+  EXPECT_DOUBLE_EQ(c.bots.activity, 2.5);
 }
 
 TEST(SymbolsConfig, AccountAndMarketMakerDefaults) {

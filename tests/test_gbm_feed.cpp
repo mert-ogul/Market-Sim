@@ -225,4 +225,100 @@ TEST(GbmRunner, TryPublishTickPushesEvent) {
   EXPECT_EQ(std::get<Tick>(ev).symbol, "PUB");
 }
 
+TEST(GbmFeed, CompanyNewsMovesOneStockAndIsReported) {
+  GbmFeedConfig cfg;
+  cfg.seed = 21;
+  cfg.dt_years = 1.0 / (252.0 * 390.0);
+  cfg.company_news_per_day = 390.0;
+  cfg.market_shocks_per_day = 0.0;
+  GbmFeed feed(cfg);
+  constexpr double kInitial = 100'000.0;
+  feed.register_symbol("NEWS", GbmSymbolParams{100'000, 0.0, 0.0});
+
+  feed.begin_round();
+  const auto tick = feed.next_tick("NEWS");
+  ASSERT_TRUE(tick.has_value());
+
+  const auto headlines = feed.take_news();
+  ASSERT_EQ(headlines.size(), 1u);
+  EXPECT_EQ(headlines[0].symbol, "NEWS");
+  EXPECT_GE(std::abs(headlines[0].move), 0.05);
+  EXPECT_LE(std::abs(headlines[0].move), 0.20);
+  EXPECT_EQ(tick->last_price, static_cast<marketsim::domain::PriceCents>(
+                                  std::llround(kInitial * (1.0 + headlines[0].move))));
+  EXPECT_GT(feed.volatility_multiplier("NEWS"), 1.0);
+  EXPECT_TRUE(feed.take_news().empty());
+}
+
+TEST(GbmFeed, StormIsCappedAtFourTimesNormal) {
+  GbmFeedConfig cfg;
+  cfg.seed = 22;
+  cfg.dt_years = 1.0 / (252.0 * 390.0);
+  cfg.company_news_per_day = 390.0;
+  cfg.market_shocks_per_day = 0.0;
+  GbmFeed feed(cfg);
+  feed.register_symbol("STORM", GbmSymbolParams{100'000, 0.0, 0.0});
+
+  for (int i = 0; i < 20; ++i) {
+    feed.begin_round();
+    ASSERT_TRUE(feed.next_tick("STORM").has_value());
+    (void)feed.take_news();
+  }
+  EXPECT_DOUBLE_EQ(feed.volatility_multiplier("STORM"), 4.0);
+}
+
+TEST(GbmFeed, MarketShockMovesEveryStockByItsCorrelation) {
+  GbmFeedConfig cfg;
+  cfg.seed = 23;
+  cfg.dt_years = 1.0 / (252.0 * 390.0);
+  cfg.company_news_per_day = 0.0;
+  cfg.market_shocks_per_day = 390.0;
+  GbmFeed feed(cfg);
+  constexpr double kInitial = 100'000.0;
+  feed.register_symbol("FULL", GbmSymbolParams{100'000, 0.0, 0.0, 1.0});
+  feed.register_symbol("HALF", GbmSymbolParams{100'000, 0.0, 0.0, 0.0});
+
+  feed.begin_round();
+  const auto full = feed.next_tick("FULL");
+  const auto half = feed.next_tick("HALF");
+  ASSERT_TRUE(full.has_value());
+  ASSERT_TRUE(half.has_value());
+
+  const auto headlines = feed.take_news();
+  ASSERT_EQ(headlines.size(), 1u);
+  EXPECT_TRUE(headlines[0].symbol.empty());
+  EXPECT_GE(std::abs(headlines[0].move), 0.02);
+  EXPECT_LE(std::abs(headlines[0].move), 0.07);
+
+  EXPECT_EQ(full->last_price, static_cast<marketsim::domain::PriceCents>(
+                                  std::llround(kInitial * (1.0 + headlines[0].move))));
+  EXPECT_EQ(half->last_price,
+            static_cast<marketsim::domain::PriceCents>(
+                std::llround(kInitial * (1.0 + 0.5 * headlines[0].move))));
+}
+
+TEST(GbmRunner, PumpPublishesNewsAfterTicks) {
+  GbmFeedConfig cfg;
+  cfg.seed = 24;
+  cfg.dt_years = 1.0 / (252.0 * 390.0);
+  cfg.company_news_per_day = 390.0;
+  cfg.market_shocks_per_day = 0.0;
+  GbmFeed feed(cfg);
+  feed.register_symbol("PUMP", GbmSymbolParams{50'000, 0.0, 0.0});
+
+  SpscRing<Event, 16> ring;
+  const std::vector<marketsim::domain::Symbol> symbols{"PUMP"};
+  EXPECT_EQ(marketsim::feed::pump_symbols(feed, symbols, ring), 1u);
+
+  Event tick_ev{Tick{}};
+  ASSERT_TRUE(ring.try_pop(tick_ev));
+  ASSERT_TRUE(std::holds_alternative<Tick>(tick_ev));
+
+  Event news_ev{Tick{}};
+  ASSERT_TRUE(ring.try_pop(news_ev));
+  ASSERT_TRUE(std::holds_alternative<marketsim::domain::News>(news_ev));
+  EXPECT_EQ(std::get<marketsim::domain::News>(news_ev).symbol, "PUMP");
+  EXPECT_FALSE(ring.try_pop(news_ev));
+}
+
 }

@@ -17,11 +17,14 @@ TEST(DashboardFormat, FormatsUsdCents) {
   EXPECT_EQ(marketsim::ui::format_usd_cents(1), "$0.01");
   EXPECT_EQ(marketsim::ui::format_usd_cents(-1'25), "-$1.25");
   EXPECT_EQ(marketsim::ui::format_usd_cents(18'000), "$180.00");
+  EXPECT_EQ(marketsim::ui::format_usd_cents(100'000'000), "$1,000,000.00");
+  EXPECT_EQ(marketsim::ui::format_usd_cents(-12'345'678), "-$123,456.78");
 }
 
 TEST(DashboardFormat, SignedPnlUsesParenthesesForNegative) {
   EXPECT_EQ(marketsim::ui::format_signed_usd_cents(100), "$1.00");
   EXPECT_EQ(marketsim::ui::format_signed_usd_cents(-50), "($0.50)");
+  EXPECT_EQ(marketsim::ui::format_signed_usd_cents(-1'234'567'89), "($1,234,567.89)");
 }
 
 TEST(DashboardFormat, SparklineEmptyOrDegenerate) {

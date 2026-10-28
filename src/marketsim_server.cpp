@@ -43,6 +43,8 @@ int main(int argc, char* argv[]) {
   marketsim::config::SymbolsJsonConfig cfg = marketsim::config::load_symbols_config_or_defaults(config_path);
   marketsim::runtime::SimulatorRuntime runtime(cfg.account.limits, cfg.account.cash_cents, cfg);
   runtime.start();
+  std::cout << "market seed: " << runtime.seed()
+            << " (set feed.seed in the config to replay this market)\n";
 
   httplib::Server svr;
   marketsim::gateway::register_http_api(svr, runtime.service());

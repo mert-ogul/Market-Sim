@@ -36,6 +36,6 @@ struct PortfolioUpdate {
 /// without manual union bookkeeping; alternatives are inline in the ring buffer (no heap
 /// per event). The largest alternative governs `sizeof(Event)`; keep payloads small on hot paths.
 using Event = std::variant<domain::Tick, OrderNew, OrderCancel, domain::Trade, domain::Quote,
-                             PortfolioUpdate>;
+                             PortfolioUpdate, domain::MarketClockState, domain::News>;
 
 }

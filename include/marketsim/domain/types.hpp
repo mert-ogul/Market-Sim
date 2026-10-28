@@ -38,4 +38,9 @@ inline constexpr AccountId kTraderAccount = 1;
 /// Simulated liquidity provider quoting around the feed price.
 inline constexpr AccountId kMarketMakerAccount = 2;
 
+/// Bots that trade against the market maker; they have no portfolio.
+inline constexpr AccountId kRandomTraderAccount = 3;
+inline constexpr AccountId kTrendFollowerAccount = 4;
+inline constexpr AccountId kBargainHunterAccount = 5;
+
 }

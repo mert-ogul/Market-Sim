@@ -23,16 +23,26 @@ template <std::size_t Capacity>
 }
 
 /// Advances each listed symbol once, in order. Returns how many ticks were published.
+/// When @p publish_ticks is false the path still moves but nothing is pushed (overnight gap).
 template <std::size_t Capacity>
 [[nodiscard]] std::size_t pump_symbols(GbmFeed& feed,
                                        const std::vector<domain::Symbol>& symbols,
-                                       eventbus::SpscRing<eventbus::Event, Capacity>& ring) {
+                                       eventbus::SpscRing<eventbus::Event, Capacity>& ring,
+                                       bool publish_ticks = true) {
   std::size_t n = 0;
   feed.begin_round();
   for (const domain::Symbol& sym : symbols) {
+    if (!publish_ticks) {
+      (void)feed.next_tick(sym);
+      continue;
+    }
     if (try_publish_tick(feed, sym, ring)) {
       ++n;
     }
+  }
+  // Headlines still publish overnight so the news endpoint stays live while trading is closed.
+  for (domain::News& headline : feed.take_news()) {
+    (void)ring.try_push(eventbus::Event{std::move(headline)});
   }
   return n;
 }

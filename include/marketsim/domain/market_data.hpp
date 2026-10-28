@@ -25,4 +25,18 @@ struct Tick {
   SimTime time{0};
 };
 
+/// Simulated exchange calendar: day number, minutes since midnight, and whether the session is open.
+struct MarketClockState {
+  int day{1};
+  int minute_of_day{570};
+  bool open{true};
+};
+
+/// Discrete price jump from company or market news. An empty symbol means the whole market;
+/// move is relative (for example -0.14 for a 14% drop).
+struct News {
+  Symbol symbol{};
+  double move{0.0};
+};
+
 }

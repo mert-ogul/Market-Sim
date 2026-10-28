@@ -33,9 +33,15 @@
     {"symbol": "WMT", "name": "Walmart", "initial_price_cents": 12029, "drift": 0.07, "volatility": 0.18, "market_correlation": 0.35}
   ],
   "feed": {
-    "seed": 42,
     "dt_years": 4e-07,
     "pump_interval_ms": 40
+  },
+  "clock": {
+    "closed_seconds": 30
+  },
+  "news": {
+    "company_news_per_day": 0.1,
+    "market_shocks_per_day": 0.05
   },
   "account": {
     "cash_cents": 100000000,
@@ -48,6 +54,12 @@
   "market_maker": {
     "enabled": true,
     "half_spread_bps": 5,
-    "quote_size": 500
+    "quote_size": 500,
+    "levels": 5,
+    "impact_bps_per_1000_shares": 5
+  },
+  "bots": {
+    "enabled": true,
+    "activity": 1.0
   }
 }

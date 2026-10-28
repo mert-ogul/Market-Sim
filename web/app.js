@@ -13,6 +13,7 @@
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+  const sharesFmt = new Intl.NumberFormat("en-US");
 
   const els = {
     indexBlock: document.getElementById("index-block"),
@@ -22,13 +23,17 @@
     cash: document.getElementById("cash"),
     equity: document.getElementById("equity"),
     pnl: document.getElementById("pnl"),
+    marketClock: document.getElementById("market-clock"),
     statusLine: document.getElementById("status-line"),
     board: document.getElementById("board"),
     companyTitle: document.getElementById("company-title"),
     focusLast: document.getElementById("focus-last"),
     focusChange: document.getElementById("focus-change"),
+    focusVolume: document.getElementById("focus-volume"),
     chart: document.getElementById("chart"),
     orderbookBody: document.getElementById("orderbook-body"),
+    tapeBody: document.getElementById("tape-body"),
+    newsBody: document.getElementById("news-body"),
     orderForm: document.getElementById("order-form"),
     shares: document.getElementById("shares"),
     limitPrice: document.getElementById("limit-price"),
@@ -45,7 +50,7 @@
     selected: null,
     boardBuilt: false,
     history: new Map(),
-    openBySymbol: new Map(),
+    clock: null,
   };
 
   const ERROR_WORDS = {
@@ -54,6 +59,7 @@
     position_limit_exceeded: "This order would take your position past the limit.",
     market_no_liquidity: "Nobody is quoting this stock right now. Try a limit order.",
     unknown_symbol_reference: "This stock has no price yet. Wait a moment and try again.",
+    market_closed: "The market is closed. It opens again at 9:30 AM.",
   };
 
   function centsToDollars(cents) {
@@ -96,6 +102,41 @@
     return ((lastCents - openCents) / openCents) * 100;
   }
 
+  function referenceCents(row) {
+    if (!row) {
+      return null;
+    }
+    if (row.previous_close_cents != null) {
+      return row.previous_close_cents;
+    }
+    return row.open_price_cents;
+  }
+
+  function formatClockTime(minute) {
+    const h24 = Math.floor(minute / 60);
+    const m = minute % 60;
+    const period = h24 >= 12 ? "PM" : "AM";
+    let h12 = h24 % 12;
+    if (h12 === 0) {
+      h12 = 12;
+    }
+    return h12 + ":" + String(m).padStart(2, "0") + " " + period;
+  }
+
+  function renderClock() {
+    if (!state.clock) {
+      els.marketClock.textContent = "";
+      return;
+    }
+    const day = state.clock.day;
+    if (state.clock.open) {
+      els.marketClock.textContent =
+        "Day " + day + ", " + formatClockTime(state.clock.minute_of_day) + ", market open";
+    } else {
+      els.marketClock.textContent = "Day " + day + ", market closed. Opens at 9:30 AM.";
+    }
+  }
+
   function setReachable(ok) {
     els.statusLine.hidden = ok;
   }
@@ -130,6 +171,13 @@
     els.submit.classList.toggle("buy", isBuy);
     els.submit.classList.toggle("sell", !isBuy);
 
+    if (state.clock && !state.clock.open) {
+      els.submit.disabled = true;
+      els.submit.textContent = "Market closed. Opens at 9:30 AM";
+      return;
+    }
+
+    els.submit.disabled = false;
     let label;
     if (type === "market") {
       label = (isBuy ? "Buy " : "Sell ") + shares + " " + symbol + " at market";
@@ -186,7 +234,7 @@
   }
 
   function paintTile(btn, row) {
-    const pct = changePct(row.last_price_cents, row.open_price_cents);
+    const pct = changePct(row.last_price_cents, referenceCents(row));
     const changeEl = btn.querySelector(".tile-change");
     const priceEl = btn.querySelector(".tile-price");
     priceEl.textContent = formatMoney(row.last_price_cents);
@@ -269,13 +317,15 @@
     els.indexValue.textContent = indexFmt.format(index.value);
     document.title = indexFmt.format(index.value) + " " + (index.name || "") + " | Market Sim";
 
-    if (index.open_value == null || index.open_value === 0) {
+    const ref =
+      index.previous_close != null ? index.previous_close : index.open_value;
+    if (ref == null || ref === 0) {
       els.indexChange.textContent = "";
       els.indexChange.className = "index-change";
       return;
     }
-    const delta = index.value - index.open_value;
-    const pct = (delta / index.open_value) * 100;
+    const delta = index.value - ref;
+    const pct = (delta / ref) * 100;
     els.indexChange.textContent = formatSignedMoney(delta) + "  " + formatSignedPercent(pct);
     els.indexChange.className = "index-change " + (delta < 0 ? "down" : delta > 0 ? "up" : "");
   }
@@ -286,11 +336,12 @@
       els.companyTitle.textContent = "—";
       els.focusLast.textContent = "—";
       els.focusChange.textContent = "";
+      els.focusVolume.textContent = "";
       return;
     }
     els.companyTitle.textContent = row.name + " (" + row.symbol + ")";
     els.focusLast.textContent = formatMoney(row.last_price_cents);
-    const pct = changePct(row.last_price_cents, row.open_price_cents);
+    const pct = changePct(row.last_price_cents, referenceCents(row));
     if (pct == null) {
       els.focusChange.textContent = "";
       els.focusChange.className = "";
@@ -298,6 +349,8 @@
       els.focusChange.textContent = formatSignedPercent(pct);
       els.focusChange.className = pct < 0 ? "down" : pct > 0 ? "up" : "";
     }
+    const volume = row.volume == null ? 0 : row.volume;
+    els.focusVolume.textContent = "Volume " + sharesFmt.format(volume);
   }
 
   function clearTable(tbody, colspan, message) {
@@ -433,22 +486,86 @@
     }
   }
 
+  function renderTape(tape) {
+    const rows = (tape && tape.trades ? tape.trades : []).slice(0, 10);
+    if (rows.length === 0) {
+      clearTable(els.tapeBody, 3, "No trades in this stock yet today.");
+      return;
+    }
+    els.tapeBody.replaceChildren();
+    for (const t of rows) {
+      const tr = document.createElement("tr");
+      const time = document.createElement("td");
+      time.textContent = formatClockTime(t.minute_of_day);
+      const px = document.createElement("td");
+      px.textContent = formatMoney(t.price_cents);
+      px.className = t.aggressive_side === "buy" ? "up" : "down";
+      const shares = document.createElement("td");
+      shares.textContent = sharesFmt.format(t.quantity);
+      tr.append(time, px, shares);
+      els.tapeBody.appendChild(tr);
+    }
+  }
+
+  function renderNews(news) {
+    const rows = (news || []).slice(0, 8);
+    if (rows.length === 0) {
+      clearTable(
+        els.newsBody,
+        3,
+        "No news yet. Company news and market shocks show up here."
+      );
+      return;
+    }
+    const today = state.clock ? state.clock.day : null;
+    els.newsBody.replaceChildren();
+    for (const n of rows) {
+      const tr = document.createElement("tr");
+      const time = document.createElement("td");
+      let timeText = formatClockTime(n.minute_of_day);
+      if (today != null && n.day !== today) {
+        timeText = "Day " + n.day + ", " + timeText;
+      }
+      time.textContent = timeText;
+
+      const headline = document.createElement("td");
+      const upMove = n.move >= 0;
+      if (n.symbol == null) {
+        headline.textContent =
+          (n.name || "Market") +
+          (upMove ? " rallies on economic news" : " falls on economic news");
+      } else {
+        headline.textContent =
+          (n.name || n.symbol) +
+          " (" +
+          n.symbol +
+          ")" +
+          (upMove ? " jumps on company news" : " falls on company news");
+      }
+
+      const move = document.createElement("td");
+      const pct = (n.move || 0) * 100;
+      move.textContent = formatSignedPercent(pct);
+      move.className = pct < 0 ? "down" : pct > 0 ? "up" : "";
+      tr.append(time, headline, move);
+      els.newsBody.appendChild(tr);
+    }
+  }
+
   function drawChart() {
     const canvas = els.chart;
     const series = state.history.get(state.selected) || [];
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = canvas.clientWidth || canvas.parentElement.clientWidth || 800;
-    const cssHeight = 260;
+    const cssHeight = canvas.clientHeight || 260;
     canvas.width = Math.round(cssWidth * dpr);
     canvas.height = Math.round(cssHeight * dpr);
-    canvas.style.width = cssWidth + "px";
-    canvas.style.height = cssHeight + "px";
 
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    const labelW = 64;
+    const labelW = 80;
     const padL = 8;
     const padR = 8;
     const padT = 12;
@@ -456,7 +573,10 @@
     const plotW = cssWidth - padL - padR - labelW;
     const plotH = cssHeight - padT - padB;
 
-    const openCents = state.openBySymbol.get(state.selected);
+    const row = state.bySymbol.get(state.selected);
+    const refCents = referenceCents(row);
+    const refLabel =
+      row && row.previous_close_cents != null ? "Prev close" : "Open";
     if (series.length === 0) {
       return;
     }
@@ -467,9 +587,9 @@
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
-    if (openCents != null) {
-      lo = Math.min(lo, openCents);
-      hi = Math.max(hi, openCents);
+    if (refCents != null) {
+      lo = Math.min(lo, refCents);
+      hi = Math.max(hi, refCents);
     }
     const span = hi - lo || 1;
     const pad = span * 0.1;
@@ -492,7 +612,7 @@
     const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
 
     const gridVals = [lo + (hi - lo) * 0.75, lo + (hi - lo) * 0.5, lo + (hi - lo) * 0.25];
-    const openY = openCents != null ? yFor(openCents) : null;
+    const refY = refCents != null ? yFor(refCents) : null;
 
     ctx.strokeStyle = rule;
     ctx.lineWidth = 1;
@@ -507,22 +627,22 @@
       ctx.moveTo(padL, y);
       ctx.lineTo(padL + plotW, y);
       ctx.stroke();
-      if (openY == null || Math.abs(y - openY) >= 16) {
+      if (refY == null || Math.abs(y - refY) >= 16) {
         ctx.fillText(money.format(centsToDollars(gv)), padL + plotW + 8, y);
       }
     }
 
-    if (openCents != null) {
+    if (refCents != null) {
       ctx.save();
       ctx.strokeStyle = inkSoft;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      ctx.moveTo(padL, openY);
-      ctx.lineTo(padL + plotW, openY);
+      ctx.moveTo(padL, refY);
+      ctx.lineTo(padL + plotW, refY);
       ctx.stroke();
       ctx.restore();
       ctx.fillStyle = inkSoft;
-      ctx.fillText("Open", padL + plotW + 8, openY);
+      ctx.fillText(refLabel, padL + plotW + 8, refY);
     }
 
     ctx.strokeStyle = ink;
@@ -547,13 +667,18 @@
       return;
     }
     try {
-      const book = await fetchJson("/orderbook/" + encodeURIComponent(state.selected));
-      if (!book.ok) {
+      const symbol = encodeURIComponent(state.selected);
+      const [book, tape] = await Promise.all([
+        fetchJson("/orderbook/" + symbol),
+        fetchJson("/tape/" + symbol),
+      ]);
+      if (!book.ok || !tape.ok) {
         setReachable(false);
         return;
       }
       setReachable(true);
       renderOrderbook(book.body);
+      renderTape(tape.body);
     } catch (_) {
       setReachable(false);
     }
@@ -561,15 +686,20 @@
 
   async function marketTick() {
     try {
-      const [symbolsRes, indexRes] = await Promise.all([
+      const [symbolsRes, indexRes, clockRes] = await Promise.all([
         fetchJson("/symbols"),
         fetchJson("/index"),
+        fetchJson("/clock"),
       ]);
-      if (!symbolsRes.ok) {
+      if (!symbolsRes.ok || !clockRes.ok) {
         setReachable(false);
         return;
       }
       setReachable(true);
+
+      state.clock = clockRes.body;
+      renderClock();
+      updateSubmitLabel();
 
       const symbols = (symbolsRes.body && symbolsRes.body.symbols) || [];
       state.symbols = symbols;
@@ -577,9 +707,6 @@
         return [s.symbol, s];
       }));
       for (const s of symbols) {
-        if (s.open_price_cents != null) {
-          state.openBySymbol.set(s.symbol, s.open_price_cents);
-        }
         appendHistory(s.symbol, s.last_price_cents);
       }
 
@@ -610,12 +737,13 @@
 
   async function accountTick() {
     try {
-      const [portfolio, orders, trades] = await Promise.all([
+      const [portfolio, orders, trades, news] = await Promise.all([
         fetchJson("/portfolio"),
         fetchJson("/orders"),
         fetchJson("/trades"),
+        fetchJson("/news"),
       ]);
-      if (!portfolio.ok || !orders.ok || !trades.ok) {
+      if (!portfolio.ok || !orders.ok || !trades.ok || !news.ok) {
         setReachable(false);
         return;
       }
@@ -631,6 +759,7 @@
       renderPositions(p.positions);
       renderOpenOrders((orders.body && orders.body.orders) || []);
       renderTrades((trades.body && trades.body.trades) || []);
+      renderNews((news.body && news.body.news) || []);
     } catch (_) {
       setReachable(false);
     }

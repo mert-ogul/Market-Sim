@@ -1,11 +1,14 @@
 #pragma once
 
+#include "marketsim/domain/bot_settings.hpp"
 #include "marketsim/domain/market_maker_settings.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/domain/types.hpp"
 #include "marketsim/feed/gbm_feed.hpp"
 
+#include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,10 +25,18 @@ struct SymbolSpec {
 /// Feed, symbol list, trader account and market maker settings.
 struct SymbolsJsonConfig {
   std::vector<SymbolSpec> symbols;
-  std::uint64_t feed_seed{42};
+  /// Empty means each process start draws a fresh seed.
+  std::optional<std::uint64_t> feed_seed{};
   double dt_years{1.0 / (252.0 * 390.0)};
   int pump_interval_ms{40};
+  /// Wall-clock seconds the session stays closed between trading days (capped at 3600).
+  int closed_seconds{30};
+  /// Expected company headlines per stock per trading day; 0 turns them off.
+  double company_news_per_day{0.0};
+  /// Expected market-wide shocks per trading day; 0 turns them off.
+  double market_shocks_per_day{0.0};
   domain::MarketMakerSettings market_maker{.enabled = true};
+  domain::BotSettings bots{};
   /// Starting cash and pre-trade limits for the trader (limits of 0 are disabled).
   domain::SimulationAccount account{.cash_cents = 100'000'000};
   /// Price-weighted index over all symbols; a divisor of 0 disables it.

@@ -33,6 +33,8 @@
     </dl>
   </header>
 
+  <p class="market-clock" id="market-clock"></p>
+
   <p class="status-line" id="status-line" hidden role="status" aria-live="polite">
     Can't reach the simulator. Retrying every second.
   </p>
@@ -49,24 +51,57 @@
         <div class="focus-price">
           <span id="focus-last">—</span>
           <span id="focus-change"></span>
+          <span class="focus-volume" id="focus-volume"></span>
         </div>
       </div>
       <canvas id="chart" width="800" height="260" aria-label="Price chart for the selected stock"></canvas>
-      <div class="orderbook-wrap">
-        <h3>Order book</h3>
-        <table class="market-table orderbook">
+      <div class="market-detail">
+        <div>
+          <h3>Order book</h3>
+          <table class="market-table orderbook">
+            <thead>
+              <tr>
+                <th scope="col">Bid size</th>
+                <th scope="col">Price</th>
+                <th scope="col">Ask size</th>
+              </tr>
+            </thead>
+            <tbody id="orderbook-body">
+              <tr><td colspan="3" class="empty">No orders in the book yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Market trades</h3>
+          <table class="market-table">
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">Price</th>
+                <th scope="col">Shares</th>
+              </tr>
+            </thead>
+            <tbody id="tape-body">
+              <tr><td colspan="3" class="empty">No trades in this stock yet today.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <section class="news" aria-labelledby="news-heading">
+        <h3 id="news-heading">News</h3>
+        <table class="market-table news-table">
           <thead>
             <tr>
-              <th scope="col">Bid size</th>
-              <th scope="col">Price</th>
-              <th scope="col">Ask size</th>
+              <th scope="col">Time</th>
+              <th scope="col">Headline</th>
+              <th scope="col">Move</th>
             </tr>
           </thead>
-          <tbody id="orderbook-body">
-            <tr><td colspan="3" class="empty">No orders in the book yet.</td></tr>
+          <tbody id="news-body">
+            <tr><td colspan="3" class="empty">No news yet. Company news and market shocks show up here.</td></tr>
           </tbody>
         </table>
-      </div>
+      </section>
     </section>
 
     <aside class="side">
