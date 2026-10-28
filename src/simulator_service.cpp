@@ -345,6 +345,34 @@ nlohmann::json SimulatorService::clock_json() const {
   return j;
 }
 
+nlohmann::json SimulatorService::news_json() const {
+  std::lock_guard lock(mu_);
+  auto arr = nlohmann::json::array();
+  for (const Headline& headline : headlines_) {
+    nlohmann::json row;
+    row["day"] = headline.clock.day;
+    row["minute_of_day"] = headline.clock.minute_of_day;
+    const double move = std::round(headline.news.move * 10'000.0) / 10'000.0;
+    row["move"] = move;
+    if (headline.news.symbol.empty()) {
+      row["symbol"] = nullptr;
+      row["name"] = market_info_.index_name.empty() ? "Market" : market_info_.index_name;
+    } else {
+      row["symbol"] = headline.news.symbol;
+      const auto name_it = market_info_.company_names.find(headline.news.symbol);
+      if (name_it != market_info_.company_names.end() && !name_it->second.empty()) {
+        row["name"] = name_it->second;
+      } else {
+        row["name"] = headline.news.symbol;
+      }
+    }
+    arr.push_back(std::move(row));
+  }
+  nlohmann::json out;
+  out["news"] = std::move(arr);
+  return out;
+}
+
 nlohmann::json SimulatorService::trades_json(const std::size_t max_rows) const {
   std::lock_guard lock(mu_);
   nlohmann::json arr = nlohmann::json::array();
@@ -515,6 +543,14 @@ void SimulatorService::apply_clock(const domain::MarketClockState& clock) {
     open_prices_.clear();
   }
   clock_ = clock;
+}
+
+void SimulatorService::record_news(const domain::News& news) {
+  std::lock_guard lock(mu_);
+  headlines_.push_front(Headline{.news = news, .clock = clock_});
+  if (headlines_.size() > kMaxHeadlines) {
+    headlines_.pop_back();
+  }
 }
 
 }

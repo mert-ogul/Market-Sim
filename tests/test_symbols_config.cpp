@@ -38,17 +38,21 @@ TEST(SymbolsConfig, SeedIsOptionalAndClockIsRead) {
       std::filesystem::temp_directory_path() / "marketsim_sym_seed_clock_test.json";
   {
     std::ofstream out(path);
-    out << R"({"symbols":["AAPL"],"feed":{"pump_interval_ms":20},"clock":{"closed_seconds":0}})";
+    out << R"({"symbols":["AAPL"],"feed":{"pump_interval_ms":20},"clock":{"closed_seconds":0},"news":{"company_news_per_day":0.2,"market_shocks_per_day":-1.5}})";
   }
   const auto c = marketsim::config::load_symbols_config_or_defaults(path);
   std::filesystem::remove(path);
   EXPECT_FALSE(c.feed_seed.has_value());
   EXPECT_EQ(c.closed_seconds, 0);
   EXPECT_EQ(c.pump_interval_ms, 20);
+  EXPECT_DOUBLE_EQ(c.company_news_per_day, 0.2);
+  EXPECT_DOUBLE_EQ(c.market_shocks_per_day, 0.0);
 
   const auto defaults = marketsim::config::default_symbols_config();
   EXPECT_FALSE(defaults.feed_seed.has_value());
   EXPECT_EQ(defaults.closed_seconds, 30);
+  EXPECT_DOUBLE_EQ(defaults.company_news_per_day, 0.0);
+  EXPECT_DOUBLE_EQ(defaults.market_shocks_per_day, 0.0);
 }
 
 TEST(SymbolsConfig, UnknownTickerWithoutInitialPriceIsSkipped) {

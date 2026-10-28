@@ -27,6 +27,10 @@ struct GbmFeedConfig {
   double dt_years{1.0 / (252.0 * 390.0)};
   /// RNG seed; same seed + same call order ⇒ identical paths (deterministic replay).
   std::uint64_t seed{42};
+  /// Expected company headlines per stock per trading day; 0 turns them off.
+  double company_news_per_day{0.0};
+  /// Expected market-wide shocks per trading day; 0 turns them off.
+  double market_shocks_per_day{0.0};
 };
 
 /// Mock price path generator: registers symbols, advances with `next_tick()`.
@@ -50,6 +54,12 @@ public:
   /// Re-seeds the RNG only; does not reset prices or cumulative volume (see README note).
   void reseed(std::uint64_t seed);
 
+  /// Current storm multiplier on volatility (1 for an unknown symbol).
+  [[nodiscard]] double volatility_multiplier(const domain::Symbol& symbol) const;
+
+  /// Headlines drawn since the last call; clears the pending list.
+  [[nodiscard]] std::vector<domain::News> take_news();
+
   [[nodiscard]] const GbmFeedConfig& config() const noexcept { return config_; }
 
 private:
@@ -58,6 +68,8 @@ private:
     double price{0.0};
     domain::Quantity cumulative_volume{0};
     domain::SimTime next_time{0};
+    /// Elevated volatility after a jump; decays toward 1 over about one trading day.
+    double storm{1.0};
   };
 
   GbmFeedConfig config_;
@@ -70,6 +82,12 @@ private:
   std::mt19937_64 market_rng_;
   std::normal_distribution<double> market_normal_{0.0, 1.0};
   double market_shock_{0.0};
+  /// Discrete market news jump for this round; 0 when none fired.
+  double market_jump_{0.0};
+  std::mt19937_64 news_rng_;
+  double days_per_tick_{0.0};
+  double storm_decay_{1.0};
+  std::vector<domain::News> pending_news_{};
 };
 
 /// Table used by `register_default_symbols()` (AAPL, GOOG, MSFT, TSLA).

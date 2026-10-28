@@ -39,6 +39,10 @@
   "clock": {
     "closed_seconds": 30
   },
+  "news": {
+    "company_news_per_day": 0.1,
+    "market_shocks_per_day": 0.05
+  },
   "account": {
     "cash_cents": 100000000,
     "max_order_size": 5000,

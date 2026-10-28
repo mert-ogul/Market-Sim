@@ -30,6 +30,10 @@ struct SymbolsJsonConfig {
   int pump_interval_ms{40};
   /// Wall-clock seconds the session stays closed between trading days (capped at 3600).
   int closed_seconds{30};
+  /// Expected company headlines per stock per trading day; 0 turns them off.
+  double company_news_per_day{0.0};
+  /// Expected market-wide shocks per trading day; 0 turns them off.
+  double market_shocks_per_day{0.0};
   domain::MarketMakerSettings market_maker{.enabled = true};
   /// Starting cash and pre-trade limits for the trader (limits of 0 are disabled).
   domain::SimulationAccount account{.cash_cents = 100'000'000};

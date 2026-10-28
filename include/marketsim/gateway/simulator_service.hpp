@@ -70,6 +70,9 @@ public:
   /// Current trading day, minute of day, and whether the session is open.
   [[nodiscard]] nlohmann::json clock_json() const;
 
+  /// Recent headlines newest first: day, minute, symbol, display name, and relative move.
+  [[nodiscard]] nlohmann::json news_json() const;
+
   [[nodiscard]] nlohmann::json trades_json(std::size_t max_rows = 500) const;
 
   /// Single-lock read model for UIs and tooling (structured portfolio fields, no JSON parse).
@@ -82,6 +85,9 @@ public:
 
   /// Session open/close and day roll from the runtime clock.
   void apply_clock(const domain::MarketClockState& clock);
+
+  /// Stores a feed headline stamped with the current clock (newest first, capped).
+  void record_news(const domain::News& news);
 
 private:
   void record_and_apply_fills(const matching::SubmitResult& result);
@@ -108,7 +114,13 @@ private:
   std::unordered_map<domain::Symbol, domain::PriceCents> previous_close_;
   /// Open by default so a service without a runtime still accepts orders.
   domain::MarketClockState clock_{};
+  struct Headline {
+    domain::News news{};
+    domain::MarketClockState clock{};
+  };
+  std::deque<Headline> headlines_{};
   static constexpr std::size_t kMaxTrades = 10'000;
+  static constexpr std::size_t kMaxHeadlines = 50;
 };
 
 }

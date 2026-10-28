@@ -40,6 +40,10 @@ template <std::size_t Capacity>
       ++n;
     }
   }
+  // Headlines still publish overnight so the tape catches up when the session opens.
+  for (domain::News& headline : feed.take_news()) {
+    (void)ring.try_push(eventbus::Event{std::move(headline)});
+  }
   return n;
 }
 

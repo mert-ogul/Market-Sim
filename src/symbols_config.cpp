@@ -165,6 +165,8 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
   out.dt_years = fallback.dt_years;
   out.pump_interval_ms = fallback.pump_interval_ms;
   out.closed_seconds = fallback.closed_seconds;
+  out.company_news_per_day = fallback.company_news_per_day;
+  out.market_shocks_per_day = fallback.market_shocks_per_day;
   out.market_maker = fallback.market_maker;
   out.account = fallback.account;
 
@@ -187,6 +189,15 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
       closed = 3600;
     }
     out.closed_seconds = static_cast<int>(closed);
+  }
+  if (j.contains("news") && j["news"].is_object()) {
+    const auto& news = j["news"];
+    if (news.contains("company_news_per_day") && news["company_news_per_day"].is_number()) {
+      out.company_news_per_day = std::max(0.0, news["company_news_per_day"].get<double>());
+    }
+    if (news.contains("market_shocks_per_day") && news["market_shocks_per_day"].is_number()) {
+      out.market_shocks_per_day = std::max(0.0, news["market_shocks_per_day"].get<double>());
+    }
   }
   if (j.contains("account") && j["account"].is_object()) {
     parse_account(j["account"], out.account);

@@ -208,6 +208,33 @@ TEST(RuntimeIntegration, NewDayKeepsThePreviousCloseAndStartsANewOpen) {
   EXPECT_EQ(after_open.at("symbols")[0].at("previous_close_cents").get<std::int64_t>(), 10'000);
 }
 
+TEST(RuntimeIntegration, HeadlinesAreStampedAndNewestFirst) {
+  marketsim::domain::RiskLimits limits{};
+  marketsim::domain::MarketInfo info;
+  info.index_name = "Dow 30";
+  info.company_names.emplace("AAPL", "Apple");
+  marketsim::gateway::SimulatorService svc(limits, 1'000'000, {"AAPL"},
+                                           marketsim::domain::MarketMakerSettings{.enabled = false},
+                                           info);
+
+  svc.apply_clock(marketsim::domain::MarketClockState{.day = 1, .minute_of_day = 600, .open = true});
+  svc.record_news(marketsim::domain::News{.symbol = "AAPL", .move = -0.12345});
+  svc.apply_clock(marketsim::domain::MarketClockState{.day = 1, .minute_of_day = 601, .open = true});
+  svc.record_news(marketsim::domain::News{.symbol = {}, .move = 0.03});
+
+  const auto j = svc.news_json();
+  ASSERT_EQ(j.at("news").size(), 2u);
+  EXPECT_TRUE(j.at("news")[0].at("symbol").is_null());
+  EXPECT_EQ(j.at("news")[0].at("name").get<std::string>(), "Dow 30");
+  EXPECT_EQ(j.at("news")[0].at("day").get<int>(), 1);
+  EXPECT_EQ(j.at("news")[0].at("minute_of_day").get<int>(), 601);
+  EXPECT_DOUBLE_EQ(j.at("news")[0].at("move").get<double>(), 0.03);
+  EXPECT_EQ(j.at("news")[1].at("symbol").get<std::string>(), "AAPL");
+  EXPECT_EQ(j.at("news")[1].at("name").get<std::string>(), "Apple");
+  EXPECT_EQ(j.at("news")[1].at("minute_of_day").get<int>(), 600);
+  EXPECT_DOUBLE_EQ(j.at("news")[1].at("move").get<double>(), -0.1235);
+}
+
 TEST(RuntimeIntegration, RestTradeWhileFeedThreadsRunning) {
   auto cfg = marketsim::config::default_symbols_config();
   cfg.symbols.resize(1);

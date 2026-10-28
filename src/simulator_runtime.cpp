@@ -52,7 +52,10 @@ SimulatorRuntime::SimulatorRuntime(domain::RiskLimits limits, const domain::Pric
       seed_(cfg_.feed_seed.value_or(random_seed())),
       service_(std::move(limits), initial_cash_cents, tickers_of(cfg_), cfg_.market_maker,
                market_info_of(cfg_)),
-      feed_(feed::GbmFeedConfig{.dt_years = cfg_.dt_years, .seed = seed_}),
+      feed_(feed::GbmFeedConfig{.dt_years = cfg_.dt_years,
+                                .seed = seed_,
+                                .company_news_per_day = cfg_.company_news_per_day,
+                                .market_shocks_per_day = cfg_.market_shocks_per_day}),
       clock_(cfg_.dt_years * kTradingSecondsPerYear,
              cfg_.closed_seconds * 1000 / cfg_.pump_interval_ms) {
   for (const config::SymbolSpec& s : cfg_.symbols) {
@@ -118,6 +121,8 @@ void SimulatorRuntime::consumer_loop() {
               service_.apply_mark_from_tick(arg);
             } else if constexpr (std::is_same_v<T, domain::MarketClockState>) {
               service_.apply_clock(arg);
+            } else if constexpr (std::is_same_v<T, domain::News>) {
+              service_.record_news(arg);
             }
           },
           ev);
