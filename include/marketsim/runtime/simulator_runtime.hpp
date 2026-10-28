@@ -1,5 +1,6 @@
 #pragma once
 
+#include "marketsim/bots/trading_bots.hpp"
 #include "marketsim/config/symbols_config.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/domain/types.hpp"
@@ -55,12 +56,14 @@ public:
 private:
   void producer_loop();
   void consumer_loop();
+  void trade_bots_on(const domain::Symbol& symbol);
 
   config::SymbolsJsonConfig cfg_;
   std::uint64_t seed_;
   gateway::SimulatorService service_;
   feed::GbmFeed feed_;
   MarketClock clock_;
+  bots::TradingBots bots_;
   eventbus::SpscRing<eventbus::Event, kEventRingCapacity> ring_;
   std::vector<domain::Symbol> pump_order_;
 

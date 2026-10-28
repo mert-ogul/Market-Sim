@@ -24,6 +24,7 @@ add_executable(marketsim_tests
   test_symbols_config.cpp
   test_runtime_integration.cpp
   test_market_maker.cpp
+  test_trading_bots.cpp
   test_market_clock.cpp
   ${MARKETSIM_GATEWAY_SOURCES}
 )

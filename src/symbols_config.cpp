@@ -114,6 +114,19 @@ void parse_market_maker(const nlohmann::json& j, domain::MarketMakerSettings& se
   }
   read_integer(j, "half_spread_bps", settings.half_spread_bps, false);
   read_integer(j, "quote_size", settings.quote_size, false);
+  read_integer(j, "levels", settings.levels, false);
+  if (j.contains("impact_bps_per_1000_shares") && j["impact_bps_per_1000_shares"].is_number()) {
+    settings.impact_bps_per_1000_shares = j["impact_bps_per_1000_shares"].get<double>();
+  }
+}
+
+void parse_bots(const nlohmann::json& j, domain::BotSettings& settings) {
+  if (j.contains("enabled") && j["enabled"].is_boolean()) {
+    settings.enabled = j["enabled"].get<bool>();
+  }
+  if (j.contains("activity") && j["activity"].is_number()) {
+    settings.activity = std::max(0.0, j["activity"].get<double>());
+  }
 }
 
 void parse_index(const nlohmann::json& j, SymbolsJsonConfig& out) {
@@ -168,6 +181,7 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
   out.company_news_per_day = fallback.company_news_per_day;
   out.market_shocks_per_day = fallback.market_shocks_per_day;
   out.market_maker = fallback.market_maker;
+  out.bots = fallback.bots;
   out.account = fallback.account;
 
   if (j.contains("feed") && j["feed"].is_object()) {
@@ -204,6 +218,9 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
   }
   if (j.contains("market_maker") && j["market_maker"].is_object()) {
     parse_market_maker(j["market_maker"], out.market_maker);
+  }
+  if (j.contains("bots") && j["bots"].is_object()) {
+    parse_bots(j["bots"], out.bots);
   }
   if (j.contains("index") && j["index"].is_object()) {
     parse_index(j["index"], out);

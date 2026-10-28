@@ -129,11 +129,31 @@ void SimulatorService::apply_trader_fill(const domain::Side side, const domain::
 
 void SimulatorService::record_and_apply_fills(const matching::SubmitResult& result) {
   for (const matching::TradeFill& fill : result.trades) {
-    trades_.push_back({fill.trade_id, fill.trade});
-    if (trades_.size() > kMaxTrades) {
-      trades_.pop_front();
-    }
     const domain::Trade& trade = fill.trade;
+    // The blotter is only the human trader's fills; bots and maker-vs-maker stay off it.
+    if (trade.aggressive_owner == domain::kTraderAccount ||
+        trade.passive_owner == domain::kTraderAccount) {
+      trades_.push_back({fill.trade_id, trade});
+      if (trades_.size() > kMaxTrades) {
+        trades_.pop_front();
+      }
+    }
+    auto& tape = tape_[trade.symbol];
+    tape.push_front(TapeEntry{.minute_of_day = clock_.minute_of_day,
+                              .price = trade.price,
+                              .quantity = trade.quantity,
+                              .aggressive_side = trade.aggressive_side});
+    if (tape.size() > kMaxTape) {
+      tape.pop_back();
+    }
+    day_volume_[trade.symbol] += trade.quantity;
+    if (trade.passive_owner == domain::kMarketMakerAccount &&
+        trade.aggressive_owner != domain::kMarketMakerAccount) {
+      const double sign = trade.aggressive_side == domain::Side::Buy ? 1.0 : -1.0;
+      price_shift_[trade.symbol] +=
+          sign * static_cast<double>(trade.quantity) / 1000.0 *
+          market_maker_.impact_bps_per_1000_shares / 10'000.0;
+    }
     if (trade.aggressive_owner == domain::kTraderAccount) {
       apply_trader_fill(trade.aggressive_side, trade);
     }
@@ -180,6 +200,26 @@ nlohmann::json SimulatorService::quote_json(const domain::Symbol& symbol) const 
   nlohmann::json j = quote_to_json(engine_.quote_snapshot(symbol));
   j["last_price_cents"] = last_price_json(symbol);
   return j;
+}
+
+nlohmann::json SimulatorService::tape_json(const domain::Symbol& symbol) const {
+  std::lock_guard lock(mu_);
+  auto arr = nlohmann::json::array();
+  const auto it = tape_.find(symbol);
+  if (it != tape_.end()) {
+    for (const TapeEntry& entry : it->second) {
+      nlohmann::json row;
+      row["minute_of_day"] = entry.minute_of_day;
+      row["price_cents"] = entry.price;
+      row["quantity"] = entry.quantity;
+      row["aggressive_side"] = entry.aggressive_side == domain::Side::Buy ? "buy" : "sell";
+      arr.push_back(std::move(row));
+    }
+  }
+  nlohmann::json out;
+  out["symbol"] = symbol;
+  out["trades"] = std::move(arr);
+  return out;
 }
 
 std::pair<int, nlohmann::json> SimulatorService::place_order(const matching::SubmitRequest& request,
@@ -235,6 +275,19 @@ std::pair<int, nlohmann::json> SimulatorService::place_order(const matching::Sub
     out["quote"] = quote_to_json(*sr.quote_after);
   }
   return {200, std::move(out)};
+}
+
+void SimulatorService::submit_house_order(const matching::SubmitRequest& request) {
+  assert(request.owner != domain::kTraderAccount);
+  std::lock_guard lock(mu_);
+  if (!clock_.open) {
+    return;
+  }
+  const matching::SubmitResult sr = engine_.submit_order(request);
+  if (!sr.accepted) {
+    return;
+  }
+  record_and_apply_fills(sr);
 }
 
 std::pair<int, nlohmann::json> SimulatorService::cancel_order(const domain::OrderId id) {
@@ -298,6 +351,8 @@ nlohmann::json SimulatorService::symbols_json() const {
     const auto prev_it = previous_close_.find(symbol);
     row["previous_close_cents"] =
         prev_it != previous_close_.end() ? nlohmann::json(prev_it->second) : nlohmann::json(nullptr);
+    const auto vol_it = day_volume_.find(symbol);
+    row["volume"] = vol_it != day_volume_.end() ? vol_it->second : 0;
     arr.push_back(std::move(row));
   }
   nlohmann::json out;
@@ -391,6 +446,27 @@ nlohmann::json SimulatorService::trades_json(const std::size_t max_rows) const {
   nlohmann::json out;
   out["trades"] = std::move(arr);
   return out;
+}
+
+std::optional<domain::PriceCents> SimulatorService::last_price(const domain::Symbol& symbol) const {
+  std::lock_guard lock(mu_);
+  const auto it = last_prices_.find(symbol);
+  if (it == last_prices_.end()) {
+    return std::nullopt;
+  }
+  return it->second;
+}
+
+std::optional<domain::PriceCents> SimulatorService::reference_price(
+    const domain::Symbol& symbol) const {
+  std::lock_guard lock(mu_);
+  if (const auto it = previous_close_.find(symbol); it != previous_close_.end()) {
+    return it->second;
+  }
+  if (const auto it = open_prices_.find(symbol); it != open_prices_.end()) {
+    return it->second;
+  }
+  return std::nullopt;
 }
 
 view::SimulatorSnapshot SimulatorService::capture_view_snapshot(const domain::Symbol& symbol,
@@ -492,38 +568,48 @@ void SimulatorService::requote_market_maker(const domain::Symbol& symbol,
 
   const domain::PriceCents half_spread =
       std::max<domain::PriceCents>(1, mid_cents * market_maker_.half_spread_bps / 10'000);
+  const std::int64_t n_levels = std::max<std::int64_t>(1, market_maker_.levels);
 
-  const std::array<std::pair<domain::Side, domain::PriceCents>, 2> quotes{{
-      {domain::Side::Buy, std::max<domain::PriceCents>(1, mid_cents - half_spread)},
-      {domain::Side::Sell, mid_cents + half_spread},
-  }};
-
-  for (const auto& [side, px] : quotes) {
-    const matching::SubmitRequest req{.symbol = symbol,
-                                      .side = side,
-                                      .type = domain::OrderType::Limit,
-                                      .limit_price = px,
-                                      .quantity = market_maker_.quote_size,
-                                      .owner = domain::kMarketMakerAccount};
-    matching::SubmitResult result = engine_.submit_order(req);
-    if (!result.accepted) {
-      continue;
-    }
-    record_and_apply_fills(result);
-    if (result.resting_quantity > 0) {
-      ids.push_back(result.order_id);
+  for (std::int64_t level = 1; level <= n_levels; ++level) {
+    const domain::Quantity size = market_maker_.quote_size * level;
+    const std::array<std::pair<domain::Side, domain::PriceCents>, 2> quotes{{
+        {domain::Side::Buy, std::max<domain::PriceCents>(1, mid_cents - half_spread * level)},
+        {domain::Side::Sell, mid_cents + half_spread * level},
+    }};
+    for (const auto& [side, px] : quotes) {
+      const matching::SubmitRequest req{.symbol = symbol,
+                                        .side = side,
+                                        .type = domain::OrderType::Limit,
+                                        .limit_price = px,
+                                        .quantity = size,
+                                        .owner = domain::kMarketMakerAccount};
+      matching::SubmitResult result = engine_.submit_order(req);
+      if (!result.accepted) {
+        continue;
+      }
+      record_and_apply_fills(result);
+      if (result.resting_quantity > 0) {
+        ids.push_back(result.order_id);
+      }
     }
   }
 }
 
 void SimulatorService::apply_mark_from_tick(const domain::Tick& tick) {
   std::lock_guard lock(mu_);
-  last_prices_[tick.symbol] = tick.last_price;
-  open_prices_.try_emplace(tick.symbol, tick.last_price);
-  portfolio_.apply_mark(tick.symbol, tick.last_price);
-  risk_.set_reference(tick.symbol, tick.last_price);
+  double shift = 0.0;
+  if (const auto it = price_shift_.find(tick.symbol); it != price_shift_.end()) {
+    shift = it->second;
+  }
+  const domain::PriceCents price = std::max<domain::PriceCents>(
+      1, static_cast<domain::PriceCents>(
+             std::llround(static_cast<double>(tick.last_price) * std::exp(shift))));
+  last_prices_[tick.symbol] = price;
+  open_prices_.try_emplace(tick.symbol, price);
+  portfolio_.apply_mark(tick.symbol, price);
+  risk_.set_reference(tick.symbol, price);
   if (market_maker_.enabled) {
-    requote_market_maker(tick.symbol, tick.last_price);
+    requote_market_maker(tick.symbol, price);
   }
 }
 
@@ -541,6 +627,7 @@ void SimulatorService::apply_clock(const domain::MarketClockState& clock) {
   if (clock.day != clock_.day) {
     previous_close_ = last_prices_;
     open_prices_.clear();
+    day_volume_.clear();
   }
   clock_ = clock;
 }

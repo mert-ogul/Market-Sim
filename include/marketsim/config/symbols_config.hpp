@@ -1,5 +1,6 @@
 #pragma once
 
+#include "marketsim/domain/bot_settings.hpp"
 #include "marketsim/domain/market_maker_settings.hpp"
 #include "marketsim/domain/risk_config.hpp"
 #include "marketsim/domain/types.hpp"
@@ -35,6 +36,7 @@ struct SymbolsJsonConfig {
   /// Expected market-wide shocks per trading day; 0 turns them off.
   double market_shocks_per_day{0.0};
   domain::MarketMakerSettings market_maker{.enabled = true};
+  domain::BotSettings bots{};
   /// Starting cash and pre-trade limits for the trader (limits of 0 are disabled).
   domain::SimulationAccount account{.cash_cents = 100'000'000};
   /// Price-weighted index over all symbols; a divisor of 0 disables it.

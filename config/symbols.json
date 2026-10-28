@@ -54,6 +54,12 @@
   "market_maker": {
     "enabled": true,
     "half_spread_bps": 5,
-    "quote_size": 500
+    "quote_size": 500,
+    "levels": 5,
+    "impact_bps_per_1000_shares": 5
+  },
+  "bots": {
+    "enabled": true,
+    "activity": 1.0
   }
 }

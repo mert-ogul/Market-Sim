@@ -3,8 +3,10 @@
 #include "marketsim/domain/market_data.hpp"
 #include "marketsim/domain/market_info.hpp"
 #include "marketsim/feed/gbm_runner.hpp"
+#include "marketsim/matching/types.hpp"
 
 #include <chrono>
+#include <optional>
 #include <random>
 #include <type_traits>
 #include <variant>
@@ -57,7 +59,8 @@ SimulatorRuntime::SimulatorRuntime(domain::RiskLimits limits, const domain::Pric
                                 .company_news_per_day = cfg_.company_news_per_day,
                                 .market_shocks_per_day = cfg_.market_shocks_per_day}),
       clock_(cfg_.dt_years * kTradingSecondsPerYear,
-             cfg_.closed_seconds * 1000 / cfg_.pump_interval_ms) {
+             cfg_.closed_seconds * 1000 / cfg_.pump_interval_ms),
+      bots_(cfg_.bots, seed_ ^ 0xD6E8FEB86659FD93ULL) {
   for (const config::SymbolSpec& s : cfg_.symbols) {
     feed_.register_symbol(s.ticker, s.gbm);
     pump_order_.push_back(s.ticker);
@@ -119,6 +122,7 @@ void SimulatorRuntime::consumer_loop() {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, domain::Tick>) {
               service_.apply_mark_from_tick(arg);
+              trade_bots_on(arg.symbol);
             } else if constexpr (std::is_same_v<T, domain::MarketClockState>) {
               service_.apply_clock(arg);
             } else if constexpr (std::is_same_v<T, domain::News>) {
@@ -130,6 +134,17 @@ void SimulatorRuntime::consumer_loop() {
     if (!got) {
       std::this_thread::sleep_for(1ms);
     }
+  }
+}
+
+void SimulatorRuntime::trade_bots_on(const domain::Symbol& symbol) {
+  const std::optional<domain::PriceCents> price = service_.last_price(symbol);
+  const std::optional<domain::PriceCents> reference = service_.reference_price(symbol);
+  if (!price.has_value() || !reference.has_value()) {
+    return;
+  }
+  for (const matching::SubmitRequest& request : bots_.on_price(symbol, *price, *reference)) {
+    service_.submit_house_order(request);
   }
 }
 

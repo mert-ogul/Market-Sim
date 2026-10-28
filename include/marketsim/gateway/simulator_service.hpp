@@ -47,9 +47,15 @@ public:
 
   [[nodiscard]] nlohmann::json quote_json(const domain::Symbol& symbol) const;
 
+  /// Recent prints for one symbol, newest first (market tape, not the trader blotter).
+  [[nodiscard]] nlohmann::json tape_json(const domain::Symbol& symbol) const;
+
   /// Runs risk check, submits to engine, updates portfolio and references, records trades.
   [[nodiscard]] std::pair<int, nlohmann::json> place_order(const matching::SubmitRequest& request,
                                                            const std::optional<std::string>& client_id);
+
+  /// Submits for a non-trader account with no risk or portfolio; ignored while the session is closed.
+  void submit_house_order(const matching::SubmitRequest& request);
 
   [[nodiscard]] std::pair<int, nlohmann::json> cancel_order(domain::OrderId id);
 
@@ -75,6 +81,12 @@ public:
 
   [[nodiscard]] nlohmann::json trades_json(std::size_t max_rows = 500) const;
 
+  /// Last marked price for @p symbol, if any tick has arrived.
+  [[nodiscard]] std::optional<domain::PriceCents> last_price(const domain::Symbol& symbol) const;
+
+  /// Previous close, or today's open on day one, when either is known.
+  [[nodiscard]] std::optional<domain::PriceCents> reference_price(const domain::Symbol& symbol) const;
+
   /// Single-lock read model for UIs and tooling (structured portfolio fields, no JSON parse).
   [[nodiscard]] view::SimulatorSnapshot capture_view_snapshot(const domain::Symbol& symbol,
                                                               std::size_t depth_levels,
@@ -90,6 +102,13 @@ public:
   void record_news(const domain::News& news);
 
 private:
+  struct TapeEntry {
+    int minute_of_day{};
+    domain::PriceCents price{};
+    domain::Quantity quantity{};
+    domain::Side aggressive_side{};
+  };
+
   void record_and_apply_fills(const matching::SubmitResult& result);
   void apply_trader_fill(domain::Side side, const domain::Trade& trade);
   void update_reference_from_quote(const domain::Quote& q);
@@ -112,6 +131,10 @@ private:
   std::unordered_map<domain::Symbol, domain::PriceCents> open_prices_;
   /// Last price of the prior session; empty on day one until the first close rolls.
   std::unordered_map<domain::Symbol, domain::PriceCents> previous_close_;
+  /// Cumulative log offset from trading against the market maker.
+  std::unordered_map<domain::Symbol, double> price_shift_;
+  std::unordered_map<domain::Symbol, std::deque<TapeEntry>> tape_;
+  std::unordered_map<domain::Symbol, domain::Quantity> day_volume_;
   /// Open by default so a service without a runtime still accepts orders.
   domain::MarketClockState clock_{};
   struct Headline {
@@ -121,6 +144,7 @@ private:
   std::deque<Headline> headlines_{};
   static constexpr std::size_t kMaxTrades = 10'000;
   static constexpr std::size_t kMaxHeadlines = 50;
+  static constexpr std::size_t kMaxTape = 30;
 };
 
 }
