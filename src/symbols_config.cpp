@@ -135,7 +135,6 @@ SymbolsJsonConfig default_symbols_config() {
   for (const auto& [sym, p] : feed::default_symbol_table()) {
     c.symbols.push_back(SymbolSpec{.ticker = sym, .gbm = p});
   }
-  c.feed_seed = 42;
   c.dt_years = feed::GbmFeedConfig{}.dt_years;
   c.pump_interval_ms = 40;
   return c;
@@ -165,6 +164,7 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
   out.feed_seed = fallback.feed_seed;
   out.dt_years = fallback.dt_years;
   out.pump_interval_ms = fallback.pump_interval_ms;
+  out.closed_seconds = fallback.closed_seconds;
   out.market_maker = fallback.market_maker;
   out.account = fallback.account;
 
@@ -179,6 +179,14 @@ SymbolsJsonConfig load_symbols_config_or_defaults(const std::filesystem::path& p
     if (f.contains("pump_interval_ms") && f["pump_interval_ms"].is_number_integer()) {
       out.pump_interval_ms = static_cast<int>(f["pump_interval_ms"].get<std::int64_t>());
     }
+  }
+  if (j.contains("clock") && j["clock"].is_object()) {
+    std::int64_t closed = out.closed_seconds;
+    read_integer(j["clock"], "closed_seconds", closed, true);
+    if (closed > 3600) {
+      closed = 3600;
+    }
+    out.closed_seconds = static_cast<int>(closed);
   }
   if (j.contains("account") && j["account"].is_object()) {
     parse_account(j["account"], out.account);

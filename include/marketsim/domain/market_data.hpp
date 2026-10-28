@@ -25,4 +25,11 @@ struct Tick {
   SimTime time{0};
 };
 
+/// Simulated exchange calendar: day number, minutes since midnight, and whether the session is open.
+struct MarketClockState {
+  int day{1};
+  int minute_of_day{570};
+  bool open{true};
+};
+
 }

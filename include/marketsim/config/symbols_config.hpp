@@ -5,7 +5,9 @@
 #include "marketsim/domain/types.hpp"
 #include "marketsim/feed/gbm_feed.hpp"
 
+#include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,9 +24,12 @@ struct SymbolSpec {
 /// Feed, symbol list, trader account and market maker settings.
 struct SymbolsJsonConfig {
   std::vector<SymbolSpec> symbols;
-  std::uint64_t feed_seed{42};
+  /// Empty means each process start draws a fresh seed.
+  std::optional<std::uint64_t> feed_seed{};
   double dt_years{1.0 / (252.0 * 390.0)};
   int pump_interval_ms{40};
+  /// Wall-clock seconds the session stays closed between trading days (capped at 3600).
+  int closed_seconds{30};
   domain::MarketMakerSettings market_maker{.enabled = true};
   /// Starting cash and pre-trade limits for the trader (limits of 0 are disabled).
   domain::SimulationAccount account{.cash_cents = 100'000'000};

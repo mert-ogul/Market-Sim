@@ -188,6 +188,9 @@ std::pair<int, nlohmann::json> SimulatorService::place_order(const matching::Sub
     return {422, make_error_json("unknown_symbol", "symbol is not configured: " + request.symbol)};
   }
   std::lock_guard lock(mu_);
+  if (!clock_.open) {
+    return {422, make_error_json("market_closed", "the market is closed; it opens again at 9:30 AM")};
+  }
   const risk::RiskCheckResult rr = risk_.check(request);
   if (!rr.allowed) {
     nlohmann::json j = make_error_json(risk_reason_string(rr.reason),
@@ -292,6 +295,9 @@ nlohmann::json SimulatorService::symbols_json() const {
     const auto open_it = open_prices_.find(symbol);
     row["open_price_cents"] =
         open_it != open_prices_.end() ? nlohmann::json(open_it->second) : nlohmann::json(nullptr);
+    const auto prev_it = previous_close_.find(symbol);
+    row["previous_close_cents"] =
+        prev_it != previous_close_.end() ? nlohmann::json(prev_it->second) : nlohmann::json(nullptr);
     arr.push_back(std::move(row));
   }
   nlohmann::json out;
@@ -324,6 +330,18 @@ nlohmann::json SimulatorService::index_json() const {
   j["value"] = value.has_value() ? nlohmann::json(*value) : nlohmann::json(nullptr);
   const auto open_value = index_value(open_prices_);
   j["open_value"] = open_value.has_value() ? nlohmann::json(*open_value) : nlohmann::json(nullptr);
+  const auto previous_close = index_value(previous_close_);
+  j["previous_close"] =
+      previous_close.has_value() ? nlohmann::json(*previous_close) : nlohmann::json(nullptr);
+  return j;
+}
+
+nlohmann::json SimulatorService::clock_json() const {
+  std::lock_guard lock(mu_);
+  nlohmann::json j;
+  j["day"] = clock_.day;
+  j["minute_of_day"] = clock_.minute_of_day;
+  j["open"] = clock_.open;
   return j;
 }
 
@@ -479,6 +497,24 @@ void SimulatorService::apply_mark_from_tick(const domain::Tick& tick) {
   if (market_maker_.enabled) {
     requote_market_maker(tick.symbol, tick.last_price);
   }
+}
+
+void SimulatorService::apply_clock(const domain::MarketClockState& clock) {
+  std::lock_guard lock(mu_);
+  if (clock_.open && !clock.open) {
+    for (auto& entry : market_maker_orders_) {
+      for (const domain::OrderId id : entry.second) {
+        (void)engine_.cancel_order(id);
+      }
+      entry.second.clear();
+    }
+    market_maker_orders_.clear();
+  }
+  if (clock.day != clock_.day) {
+    previous_close_ = last_prices_;
+    open_prices_.clear();
+  }
+  clock_ = clock;
 }
 
 }

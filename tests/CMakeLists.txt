@@ -24,6 +24,7 @@ add_executable(marketsim_tests
   test_symbols_config.cpp
   test_runtime_integration.cpp
   test_market_maker.cpp
+  test_market_clock.cpp
   ${MARKETSIM_GATEWAY_SOURCES}
 )
 target_include_directories(marketsim_tests SYSTEM PRIVATE ${httplib_SOURCE_DIR})

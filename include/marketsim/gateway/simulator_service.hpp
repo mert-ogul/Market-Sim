@@ -1,5 +1,6 @@
 #pragma once
 
+#include "marketsim/domain/market_data.hpp"
 #include "marketsim/domain/market_info.hpp"
 #include "marketsim/domain/market_maker_settings.hpp"
 #include "marketsim/domain/risk_config.hpp"
@@ -66,6 +67,9 @@ public:
   /// Index name, current and opening value; value fields are null until every symbol has a price.
   [[nodiscard]] nlohmann::json index_json() const;
 
+  /// Current trading day, minute of day, and whether the session is open.
+  [[nodiscard]] nlohmann::json clock_json() const;
+
   [[nodiscard]] nlohmann::json trades_json(std::size_t max_rows = 500) const;
 
   /// Single-lock read model for UIs and tooling (structured portfolio fields, no JSON parse).
@@ -75,6 +79,9 @@ public:
 
   /// Applies MTM mark and risk reference from a feed tick, then requotes the market maker when enabled.
   void apply_mark_from_tick(const domain::Tick& tick);
+
+  /// Session open/close and day roll from the runtime clock.
+  void apply_clock(const domain::MarketClockState& clock);
 
 private:
   void record_and_apply_fills(const matching::SubmitResult& result);
@@ -97,6 +104,10 @@ private:
   std::unordered_map<domain::Symbol, domain::PriceCents> last_prices_;
   /// First feed price seen per symbol; the reference for daily change.
   std::unordered_map<domain::Symbol, domain::PriceCents> open_prices_;
+  /// Last price of the prior session; empty on day one until the first close rolls.
+  std::unordered_map<domain::Symbol, domain::PriceCents> previous_close_;
+  /// Open by default so a service without a runtime still accepts orders.
+  domain::MarketClockState clock_{};
   static constexpr std::size_t kMaxTrades = 10'000;
 };
 

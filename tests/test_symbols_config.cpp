@@ -28,8 +28,27 @@ TEST(SymbolsConfig, LoadValidFileOverridesSymbols) {
   ASSERT_EQ(c.symbols.size(), 1u);
   EXPECT_EQ(c.symbols[0].ticker, "ZZZ");
   EXPECT_EQ(c.symbols[0].gbm.initial_price_cents, 5000);
-  EXPECT_EQ(c.feed_seed, 3u);
+  ASSERT_TRUE(c.feed_seed.has_value());
+  EXPECT_EQ(*c.feed_seed, 3u);
   EXPECT_EQ(c.pump_interval_ms, 10);
+}
+
+TEST(SymbolsConfig, SeedIsOptionalAndClockIsRead) {
+  const std::filesystem::path path =
+      std::filesystem::temp_directory_path() / "marketsim_sym_seed_clock_test.json";
+  {
+    std::ofstream out(path);
+    out << R"({"symbols":["AAPL"],"feed":{"pump_interval_ms":20},"clock":{"closed_seconds":0}})";
+  }
+  const auto c = marketsim::config::load_symbols_config_or_defaults(path);
+  std::filesystem::remove(path);
+  EXPECT_FALSE(c.feed_seed.has_value());
+  EXPECT_EQ(c.closed_seconds, 0);
+  EXPECT_EQ(c.pump_interval_ms, 20);
+
+  const auto defaults = marketsim::config::default_symbols_config();
+  EXPECT_FALSE(defaults.feed_seed.has_value());
+  EXPECT_EQ(defaults.closed_seconds, 30);
 }
 
 TEST(SymbolsConfig, UnknownTickerWithoutInitialPriceIsSkipped) {

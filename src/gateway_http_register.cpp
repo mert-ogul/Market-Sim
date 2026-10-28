@@ -35,6 +35,10 @@ void register_http_api(httplib::Server& svr, SimulatorService& svc) {
     res.set_content(svc.index_json().dump(), "application/json");
   });
 
+  svr.Get("/api/v1/clock", [&svc](const httplib::Request&, httplib::Response& res) {
+    res.set_content(svc.clock_json().dump(), "application/json");
+  });
+
   svr.Get("/api/v1/trades", [&svc](const httplib::Request&, httplib::Response& res) {
     res.set_content(svc.trades_json().dump(), "application/json");
   });

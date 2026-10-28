@@ -7,9 +7,11 @@
 #include "marketsim/eventbus/spsc_ring.hpp"
 #include "marketsim/feed/gbm_feed.hpp"
 #include "marketsim/gateway/simulator_service.hpp"
+#include "marketsim/runtime/market_clock.hpp"
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -44,6 +46,9 @@ public:
   [[nodiscard]] gateway::SimulatorService& service() noexcept { return service_; }
   [[nodiscard]] const gateway::SimulatorService& service() const noexcept { return service_; }
 
+  /// RNG seed used for this process (from config, or drawn at construction).
+  [[nodiscard]] std::uint64_t seed() const noexcept { return seed_; }
+
   /// Symbols advanced each pump (same order as config).
   [[nodiscard]] const std::vector<domain::Symbol>& pump_order() const noexcept { return pump_order_; }
 
@@ -52,8 +57,10 @@ private:
   void consumer_loop();
 
   config::SymbolsJsonConfig cfg_;
+  std::uint64_t seed_;
   gateway::SimulatorService service_;
   feed::GbmFeed feed_;
+  MarketClock clock_;
   eventbus::SpscRing<eventbus::Event, kEventRingCapacity> ring_;
   std::vector<domain::Symbol> pump_order_;
 
