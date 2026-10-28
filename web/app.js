@@ -165,7 +165,8 @@
   function updateSubmitLabel() {
     const side = selectedSide();
     const type = selectedType();
-    const shares = els.shares.value.trim() || "0";
+    const typed = els.shares.value.trim() || "0";
+    const shares = Number.isInteger(Number(typed)) ? sharesFmt.format(Number(typed)) : typed;
     const symbol = state.selected || "—";
     const isBuy = side === "buy";
     els.submit.classList.toggle("buy", isBuy);
@@ -385,14 +386,14 @@
       price.className = "ask-px";
       price.textContent = formatMoney(level.price_cents);
       const askSize = document.createElement("td");
-      askSize.textContent = String(level.total_quantity);
+      askSize.textContent = sharesFmt.format(level.total_quantity);
       tr.append(bidSize, price, askSize);
       els.orderbookBody.appendChild(tr);
     }
     for (const level of bids) {
       const tr = document.createElement("tr");
       const bidSize = document.createElement("td");
-      bidSize.textContent = String(level.total_quantity);
+      bidSize.textContent = sharesFmt.format(level.total_quantity);
       const price = document.createElement("td");
       price.className = "bid-px";
       price.textContent = formatMoney(level.price_cents);
@@ -417,7 +418,7 @@
       const stock = document.createElement("td");
       stock.textContent = p.symbol;
       const shares = document.createElement("td");
-      shares.textContent = String(p.quantity);
+      shares.textContent = sharesFmt.format(p.quantity);
       const avg = document.createElement("td");
       avg.textContent = formatMoney(p.avg_entry_cents);
       const pnl = document.createElement("td");
@@ -478,7 +479,7 @@
       const tr = document.createElement("tr");
       const desc = document.createElement("td");
       const verb = t.side === "buy" ? "Bought" : "Sold";
-      desc.textContent = verb + " " + t.quantity + " " + t.symbol;
+      desc.textContent = verb + " " + sharesFmt.format(t.quantity) + " " + t.symbol;
       const px = document.createElement("td");
       px.textContent = formatMoney(t.price_cents);
       tr.append(desc, px);
@@ -906,15 +907,15 @@
       const verb = side === "buy" ? "Bought" : "Sold";
       const parts = [];
       if (filledQty > 0 && avg != null) {
-        parts.push(verb + " " + filledQty + " " + state.selected + " at " + formatMoney(avg) + ".");
+        parts.push(verb + " " + sharesFmt.format(filledQty) + " " + state.selected + " at " + formatMoney(avg) + ".");
       } else {
         parts.push("Order accepted.");
       }
       const resting = body.resting_quantity || 0;
       if (resting > 0 && payload.price_cents != null) {
-        parts.push(resting + " shares are waiting at " + formatMoney(payload.price_cents) + ".");
+        parts.push(sharesFmt.format(resting) + " shares are waiting at " + formatMoney(payload.price_cents) + ".");
       } else if (resting > 0) {
-        parts.push(resting + " shares are waiting.");
+        parts.push(sharesFmt.format(resting) + " shares are waiting.");
       }
       if (body.self_trade_cancelled_order_ids && body.self_trade_cancelled_order_ids.length > 0) {
         parts.push("Your opposite order was cancelled so you don't trade with yourself.");
